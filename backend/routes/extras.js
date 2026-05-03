@@ -1,0 +1,161 @@
+'use strict';
+/**
+ * Extra apps routes:
+ * - /api/pl-entries        — Profit & Loss
+ * - /api/money-ledger      — Money Ledger
+ * - /api/reimbursements    — Reimbursements
+ * - /api/invoices          — Invoice Tracker
+ */
+const express = require('express');
+const router  = express.Router();
+const db      = require('../db');
+const { requireAuth } = require('../middleware/auth');
+
+// ── Helper: generic CRUD factory ──────────────────────────────────────────
+function crud(table, fields, orderBy='id DESC') {
+  router.get(`/${table}`, requireAuth, async (req, res) => {
+    try { res.json(await db.query(`SELECT * FROM ${table} ORDER BY ${orderBy}`)); }
+    catch(e) { res.status(500).json({ error: e.message }); }
+  });
+
+  router.post(`/${table}`, requireAuth, async (req, res) => {
+    try {
+      const cols  = fields.filter(f => req.body[f] !== undefined);
+      const vals  = cols.map(f => req.body[f]);
+      const [r]   = await db.pool.execute(
+        `INSERT INTO ${table}(${cols.join(',')}) VALUES(${cols.map(()=>'?').join(',')})`,
+        vals
+      );
+      res.json(await db.getOne(`SELECT * FROM ${table} WHERE id=?`, [r.insertId]));
+    } catch(e) { res.status(500).json({ error: e.message }); }
+  });
+
+  router.put(`/${table}/:id`, requireAuth, async (req, res) => {
+    try {
+      const cols = fields.filter(f => req.body[f] !== undefined);
+      if (!cols.length) return res.json({ ok: true });
+      const vals = [...cols.map(f => req.body[f]), req.params.id];
+      await db.pool.execute(
+        `UPDATE ${table} SET ${cols.map(f=>`${f}=?`).join(',')} WHERE id=?`, vals
+      );
+      res.json({ ok: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+  });
+
+  router.delete(`/${table}/:id`, requireAuth, async (req, res) => {
+    try {
+      await db.pool.execute(`DELETE FROM ${table} WHERE id=?`, [req.params.id]);
+      res.json({ ok: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+  });
+}
+
+// ── Register CRUD for each app ────────────────────────────────────────────
+crud('pl_entries',
+  ['type','month','year','category','description','amount','note','entered_by'],
+  'year DESC, month DESC, id DESC'
+);
+
+crud('money_ledger',
+  ['type','person','amount','entry_date','note','settled','entered_by'],
+  'entry_date DESC, id DESC'
+);
+
+crud('reimbursements',
+  ['paid_by','amount','category','description','paid_date','reference','entered_by',
+   'repaid','repaid_amount','repaid_method','repaid_date','repaid_note','repaid_by',
+   'pending_approval','req_by'],
+  'paid_date DESC, id DESC'
+);
+
+crud('invoices',
+  ['direction','invoice_number','party_name','total_amount','paid_amount',
+   'payment_method','issue_date','due_date','notes','entered_by',
+   'last_payment_date','payment_ref','payment_requested','req_by'],
+  'issue_date DESC, id DESC'
+);
+
+// P&L Categories
+// P&L Categories - explicit routes with hyphen path
+router.get('/pl-categories', requireAuth, async (req, res) => {
+  try { res.json(await db.query('SELECT * FROM pl_categories ORDER BY type, sort')); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+router.post('/pl-categories', requireAuth, async (req, res) => {
+  try {
+    const { type, name_en, name_ar='', sort=99 } = req.body;
+    const [r] = await db.pool.execute('INSERT INTO pl_categories(type,name_en,name_ar,sort) VALUES(?,?,?,?)',[type,name_en,name_ar,sort]);
+    res.json(await db.getOne('SELECT * FROM pl_categories WHERE id=?',[r.insertId]));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+router.put('/pl-categories/:id', requireAuth, async (req, res) => {
+  try {
+    const { name_en, name_ar } = req.body;
+    await db.pool.execute('UPDATE pl_categories SET name_en=?,name_ar=? WHERE id=?',[name_en,name_ar,req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+router.delete('/pl-categories/:id', requireAuth, async (req, res) => {
+  try { await db.pool.execute('DELETE FROM pl_categories WHERE id=?',[req.params.id]); res.json({ ok: true }); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Invoice payments history
+router.get('/invoices/:id/payments', requireAuth, async (req, res) => {
+  try { res.json(await db.query('SELECT * FROM invoice_payments WHERE invoice_id=? ORDER BY payment_date ASC',[req.params.id])); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+router.post('/invoices/:id/payments', requireAuth, async (req, res) => {
+  try {
+    const { amount, payment_method='Bank Transfer', payment_date, reference='' } = req.body;
+    if (!amount || !payment_date) return res.status(400).json({ error: 'Missing fields' });
+    const [r] = await db.pool.execute(
+      'INSERT INTO invoice_payments(invoice_id,amount,payment_method,payment_date,reference,recorded_by) VALUES(?,?,?,?,?,?)',
+      [req.params.id, amount, payment_method, payment_date, reference, req.user.name]
+    );
+    // Update invoice paid_amount
+    const payments = await db.query('SELECT SUM(amount) as total FROM invoice_payments WHERE invoice_id=?',[req.params.id]);
+    const newPaid = parseFloat(payments[0].total || 0);
+    await db.pool.execute('UPDATE invoices SET paid_amount=?,last_payment_date=? WHERE id=?',
+      [newPaid, payment_date, req.params.id]);
+    res.json(await db.getOne('SELECT * FROM invoice_payments WHERE id=?',[r.insertId]));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+router.delete('/invoice-payments/:id', requireAuth, async (req, res) => {
+  try {
+    const pay = await db.getOne('SELECT * FROM invoice_payments WHERE id=?',[req.params.id]);
+    if (!pay) return res.status(404).json({ error: 'Not found' });
+    await db.pool.execute('DELETE FROM invoice_payments WHERE id=?',[req.params.id]);
+    // Recalculate invoice paid_amount
+    const payments = await db.query('SELECT SUM(amount) as total FROM invoice_payments WHERE invoice_id=?',[pay.invoice_id]);
+    const newPaid = parseFloat(payments[0].total || 0);
+    await db.pool.execute('UPDATE invoices SET paid_amount=? WHERE id=?',[newPaid, pay.invoice_id]);
+    res.json({ ok: true, new_paid: newPaid });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Reimbursement Categories
+router.get('/rb-categories', requireAuth, async (req, res) => {
+  try { res.json(await db.query('SELECT * FROM rb_categories ORDER BY sort')); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+router.post('/rb-categories', requireAuth, async (req, res) => {
+  try {
+    const { name_en, name_ar='', sort=99 } = req.body;
+    const [r] = await db.pool.execute('INSERT INTO rb_categories(name_en,name_ar,sort) VALUES(?,?,?)',[name_en,name_ar,sort]);
+    res.json(await db.getOne('SELECT * FROM rb_categories WHERE id=?',[r.insertId]));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+router.put('/rb-categories/:id', requireAuth, async (req, res) => {
+  try {
+    const { name_en, name_ar } = req.body;
+    await db.pool.execute('UPDATE rb_categories SET name_en=?,name_ar=? WHERE id=?',[name_en,name_ar,req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+router.delete('/rb-categories/:id', requireAuth, async (req, res) => {
+  try { await db.pool.execute('DELETE FROM rb_categories WHERE id=?',[req.params.id]); res.json({ ok: true }); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+module.exports = router;

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Success — Team Portal</title>
+<link rel="stylesheet" href="/css/theme.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+
+/* ══ LOGIN ═══════════════════════════════════════════════════ */
+#login-screen{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;z-index:999;background:#2abfbf;display:flex;align-items:center;justify-content:center;padding:20px;}
+[data-theme=dark] #login-screen{background:#1a8f8f;}
+.lc-box{background:#fff;border-radius:20px;padding:36px 40px 32px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.15);}
+[data-theme=dark] .lc-box{background:#182236;}
+.lc-controls{display:flex;align-items:center;gap:8px;justify-content:flex-end;margin-bottom:22px;}
+.lc-ctrl-btn{width:34px;height:34px;border-radius:8px;border:1.5px solid #e2e8f0;background:transparent;font-size:15px;cursor:pointer;color:#64748b;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.lc-ctrl-btn:hover{border-color:#2abfbf;color:#2abfbf;}
+[data-theme=dark] .lc-ctrl-btn{border-color:#2a3d5a;color:#7a8dab;}
+.lc-lang{display:flex;border:1.5px solid #e2e8f0;border-radius:8px;overflow:hidden;}
+[data-theme=dark] .lc-lang{border-color:#2a3d5a;}
+.lc-lang-btn{padding:4px 12px;border:none;background:transparent;font-size:12px;font-weight:600;cursor:pointer;color:#94a3b8;transition:all .15s;}
+.lc-lang-btn.on{background:#2abfbf;color:#fff;}
+.lc-logo{text-align:center;margin-bottom:18px;}
+.lc-logo img{height:64px;width:auto;}
+.lc-title{font-size:22px;font-weight:800;color:#1e2d4a;margin-bottom:4px;text-align:center;}
+[data-theme=dark] .lc-title{color:#e8edf5;}
+.lc-sub{font-size:13px;color:#94a3b8;text-align:center;margin-bottom:22px;line-height:1.5;}
+.lc-field{margin-bottom:16px;}
+.lc-label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;margin-bottom:7px;}
+body.ar .lc-label{letter-spacing:0;text-transform:none;font-size:12px;}
+.lc-sel-wrap{position:relative;}
+.lc-sel{width:100%;padding:12px 40px 12px 14px;border:1.5px solid #e2e8f0;border-radius:10px;background:#f8fafc;color:#1e2d4a;font-family:inherit;font-size:14px;font-weight:500;appearance:none;cursor:pointer;outline:none;transition:border-color .2s,box-shadow .2s;}
+.lc-sel:focus{border-color:#2abfbf;box-shadow:0 0 0 3px rgba(42,191,191,.15);}
+[data-theme=dark] .lc-sel{background:#1e2d45;border-color:#2a3d5a;color:#e8edf5;}
+.lc-arr{position:absolute;right:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:#94a3b8;pointer-events:none;}
+.lc-pin-wrap{position:relative;}
+.lc-pin-icon{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:15px;pointer-events:none;}
+.lc-pin{width:100%;padding:12px 14px 12px 42px;border:1.5px solid #e2e8f0;border-radius:10px;background:#f8fafc;color:#1e2d4a;font-family:inherit;font-size:24px;letter-spacing:14px;outline:none;transition:border-color .2s,box-shadow .2s;}
+.lc-pin:focus{border-color:#2abfbf;box-shadow:0 0 0 3px rgba(42,191,191,.15);}
+.lc-pin::placeholder{letter-spacing:8px;font-size:18px;color:#cbd5e1;}
+[data-theme=dark] .lc-pin{background:#1e2d45;border-color:#2a3d5a;color:#e8edf5;}
+.lc-dots{display:flex;gap:8px;margin-top:10px;justify-content:center;}
+.lc-dots .pin-dot{width:10px;height:10px;border-radius:50%;background:#e2e8f0;transition:background .2s,transform .15s;display:inline-block;}
+.lc-dots .pin-dot.fill{background:#2abfbf;transform:scale(1.2);}
+.lc-btn{width:100%;padding:13px;margin-top:4px;background:#1e2d4a;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;}
+.lc-btn:hover{background:#2abfbf;transform:translateY(-1px);box-shadow:0 6px 20px rgba(42,191,191,.35);}
+.pin-err{color:#e05a2b;font-size:12px;margin-top:8px;text-align:center;min-height:16px;}
+
+</style>
+</head>
+<body data-theme="light">
+
+<!-- ══ LOGIN ══ -->
+<div id="login-screen">
+  <div class="lc-box">
+    <div class="lc-controls">
+      <button class="lc-ctrl-btn" id="login-theme-btn" onclick="toggleTheme()">&#9790;</button>
+      <div class="lc-lang">
+        <button class="lc-lang-btn on" data-lang="en" onclick="setLang('en')">EN</button>
+        <button class="lc-lang-btn"    data-lang="ar" onclick="setLang('ar')">&#1593;</button>
+      </div>
+    </div>
+    <div class="lc-logo"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjAgMTAwIiBoZWlnaHQ9IjQwIj4KICA8IS0tIFNxdWFyZXMgZ3JpZCAtLT4KICA8cmVjdCB4PSI4IiB5PSI0MiIgd2lkdGg9IjI4IiBoZWlnaHQ9IjI4IiByeD0iMyIgZmlsbD0id2hpdGUiLz4KICA8cmVjdCB4PSI0MCIgeT0iNTAiIHdpZHRoPSIyMiIgaGVpZ2h0PSIyMCIgcng9IjMiIGZpbGw9IiMyYWJmYmYiLz4KICA8cmVjdCB4PSI4IiB5PSI3NCIgd2lkdGg9IjI4IiBoZWlnaHQ9IjIyIiByeD0iMyIgZmlsbD0iIzJhYmZiZiIvPgogIDxyZWN0IHg9IjQwIiB5PSI3NCIgd2lkdGg9IjIyIiBoZWlnaHQ9IjIyIiByeD0iMyIgZmlsbD0id2hpdGUiLz4KICA8cmVjdCB4PSI2NiIgeT0iODAiIHdpZHRoPSIxMCIgaGVpZ2h0PSIxNiIgcng9IjIiIGZpbGw9IndoaXRlIi8+CiAgPCEtLSBDaXJjdWl0IGxpbmVzIC0tPgogIDxsaW5lIHgxPSIyMCIgeTE9IjQyIiB4Mj0iMjAiIHkyPSIxMiIgc3Ryb2tlPSIjMmFiZmJmIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPGNpcmNsZSBjeD0iMjAiIGN5PSIxMCIgcj0iNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmFiZmJmIiBzdHJva2Utd2lkdGg9IjIuNSIvPgogIDxsaW5lIHgxPSIzNiIgeTE9IjUwIiB4Mj0iMzYiIHkyPSIyMiIgc3Ryb2tlPSIjMmFiZmJmIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPGNpcmNsZSBjeD0iMzYiIGN5PSIyMCIgcj0iNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmFiZmJmIiBzdHJva2Utd2lkdGg9IjIuNSIvPgogIDxsaW5lIHgxPSI1MiIgeTE9IjUwIiB4Mj0iNTIiIHkyPSIzMCIgc3Ryb2tlPSIjMmFiZmJmIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPGNpcmNsZSBjeD0iNTIiIGN5PSIyOCIgcj0iNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmFiZmJmIiBzdHJva2Utd2lkdGg9IjIuNSIvPgogIDwhLS0gQXJhYmljIHRleHQgLS0+CiAgPHRleHQgeD0iOTAiIHk9IjU4IiBmb250LWZhbWlseT0iVGFob21hLEFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjYiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9InN0YXJ0Ij7Yp9mE2YbYrNin2K0g2KfZhNiw2YPZijwvdGV4dD4KICA8IS0tIEVuZ2xpc2ggdGV4dCAtLT4KICA8dGV4dCB4PSI5MCIgeT0iODIiIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjE2IiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0iIzJhYmZiZiIgbGV0dGVyLXNwYWNpbmc9IjIiIHRleHQtYW5jaG9yPSJzdGFydCI+U01BUlQgU1VDQ0VTUzwvdGV4dD4KPC9zdmc+" alt="Smart Success"></div>
+    <h2 class="lc-title" id="ltitle">Team Portal</h2>
+    <p  class="lc-sub"   id="lsub">Select your name, then enter your PIN</p>
+    <div class="lc-field">
+      <label class="lc-label" id="lp-name-lbl">Team Member</label>
+      <div class="lc-sel-wrap">
+        <select class="lc-sel" id="lp-name-select" onchange="selMDropdown(this.value)">
+          <option value="">&#8212; Select your name &#8212;</option>
+        </select>
+        <svg class="lc-arr" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"/></svg>
+      </div>
+    </div>
+    <div class="pin-sec" id="pin-sec">
+      <div class="lc-field">
+        <label class="lc-label"><span id="pin-for">PIN for</span> <strong id="pin-name" style="color:#2abfbf"></strong></label>
+        <div class="lc-pin-wrap">
+          <span class="lc-pin-icon">&#128274;</span>
+          <input type="password" id="pin-input" class="lc-pin" maxlength="4"
+            placeholder="&#8226;&#8226;&#8226;&#8226;" autocomplete="off" inputmode="numeric"
+            oninput="onPinInput(this.value)" onkeydown="if(event.key==='Enter')psubmit()">
+        </div>
+        <div class="lc-dots">
+          <span class="pin-dot" id="pd0"></span>
+          <span class="pin-dot" id="pd1"></span>
+          <span class="pin-dot" id="pd2"></span>
+          <span class="pin-dot" id="pd3"></span>
+        </div>
+      </div>
+      <button class="lc-btn" id="unlock-btn" onclick="psubmit()">Sign In &#8594;</button>
+      <div class="pin-err" id="pin-err"></div>
+    </div>
+    <div id="login-status" style="font-size:12px;color:#999;margin-top:8px;min-height:16px;text-align:center"></div>
+  </div>
+</div>
+
+<!-- ══ HEADER ══ -->
+<header id="main-hdr" style="display:none">
+  <div class="h-logo">
+    <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMjAgMTAwIiBoZWlnaHQ9IjQwIj4KICA8IS0tIFNxdWFyZXMgZ3JpZCAtLT4KICA8cmVjdCB4PSI4IiB5PSI0MiIgd2lkdGg9IjI4IiBoZWlnaHQ9IjI4IiByeD0iMyIgZmlsbD0id2hpdGUiLz4KICA8cmVjdCB4PSI0MCIgeT0iNTAiIHdpZHRoPSIyMiIgaGVpZ2h0PSIyMCIgcng9IjMiIGZpbGw9IiMyYWJmYmYiLz4KICA8cmVjdCB4PSI4IiB5PSI3NCIgd2lkdGg9IjI4IiBoZWlnaHQ9IjIyIiByeD0iMyIgZmlsbD0iIzJhYmZiZiIvPgogIDxyZWN0IHg9IjQwIiB5PSI3NCIgd2lkdGg9IjIyIiBoZWlnaHQ9IjIyIiByeD0iMyIgZmlsbD0id2hpdGUiLz4KICA8cmVjdCB4PSI2NiIgeT0iODAiIHdpZHRoPSIxMCIgaGVpZ2h0PSIxNiIgcng9IjIiIGZpbGw9IndoaXRlIi8+CiAgPCEtLSBDaXJjdWl0IGxpbmVzIC0tPgogIDxsaW5lIHgxPSIyMCIgeTE9IjQyIiB4Mj0iMjAiIHkyPSIxMiIgc3Ryb2tlPSIjMmFiZmJmIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPGNpcmNsZSBjeD0iMjAiIGN5PSIxMCIgcj0iNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmFiZmJmIiBzdHJva2Utd2lkdGg9IjIuNSIvPgogIDxsaW5lIHgxPSIzNiIgeTE9IjUwIiB4Mj0iMzYiIHkyPSIyMiIgc3Ryb2tlPSIjMmFiZmJmIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPGNpcmNsZSBjeD0iMzYiIGN5PSIyMCIgcj0iNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmFiZmJmIiBzdHJva2Utd2lkdGg9IjIuNSIvPgogIDxsaW5lIHgxPSI1MiIgeTE9IjUwIiB4Mj0iNTIiIHkyPSIzMCIgc3Ryb2tlPSIjMmFiZmJmIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPGNpcmNsZSBjeD0iNTIiIGN5PSIyOCIgcj0iNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmFiZmJmIiBzdHJva2Utd2lkdGg9IjIuNSIvPgogIDwhLS0gQXJhYmljIHRleHQgLS0+CiAgPHRleHQgeD0iOTAiIHk9IjU4IiBmb250LWZhbWlseT0iVGFob21hLEFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjYiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9InN0YXJ0Ij7Yp9mE2YbYrNin2K0g2KfZhNiw2YPZijwvdGV4dD4KICA8IS0tIEVuZ2xpc2ggdGV4dCAtLT4KICA8dGV4dCB4PSI5MCIgeT0iODIiIGZvbnQtZmFtaWx5PSJBcmlhbCxzYW5zLXNlcmlmIiBmb250LXNpemU9IjE2IiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0iIzJhYmZiZiIgbGV0dGVyLXNwYWNpbmc9IjIiIHRleHQtYW5jaG9yPSJzdGFydCI+U01BUlQgU1VDQ0VTUzwvdGV4dD4KPC9zdmc+" alt="Smart Success">
+    <div class="h-logo-text" id="hpage"></div>
+  </div>
+  <div class="h-right">
+    <div class="lang-grp">
+      <button class="lang-btn on" data-lang="en" onclick="setLang('en')">EN</button>
+      <button class="lang-btn"    data-lang="ar" onclick="setLang('ar')">&#1593;</button>
+    </div>
+    <button class="theme-btn" id="theme-btn" onclick="toggleTheme()">&#9790;</button>
+    <div class="float-badge" id="float-badge">
+      <span class="fl">Float</span>
+      <span class="fv" id="float-val">SAR 0.00</span>
+    </div>
+    <button class="home-btn" id="home-btn" onclick="showLauncher()">&#8962; Apps</button>
+    <div class="sess">
+      <div class="sess-dot"></div>
+      <span id="sess-name"></span>
+      <button class="signout-btn" id="signout-btn" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<!-- ══ LAUNCHER ══ -->
+<div id="launcher-screen">
+  <div class="lw" id="lwelcome">Welcome back,</div>
+  <div class="ln" id="lname"></div>
+  <div class="app-grid" id="app-grid"></div>
+</div>
+
+<!-- ══ APP SCREEN ══ -->
+<div id="app-screen">
+  <div class="main-wrap" id="app-wrap"></div>
+</div>
+
+<!-- ══ TASK MODAL ══ -->
+<div class="overlay" id="task-modal">
+  <div class="modal">
+    <h3 id="tm-h">New Task</h3>
+    <div class="mf">
+      <div><label id="tm-tlbl">Title</label><input type="text" id="tm-title"></div>
+      <div class="mrow">
+        <div><label id="tm-albl">Assigned To</label><select id="tm-who"></select></div>
+        <div><label id="tm-plbl">Priority</label>
+          <select id="tm-prio">
+            <option value="h">High</option><option value="m" selected>Medium</option><option value="l">Low</option>
+          </select>
+        </div>
+      </div>
+      <div class="mrow">
+        <div><label id="tm-slbl">Status</label>
+          <select id="tm-status">
+            <option value="todo">To Do</option><option value="prog">In Progress</option><option value="done">Done</option>
+          </select>
+        </div>
+        <div><label id="tm-dlbl">Due Date</label><input type="date" id="tm-due"></div>
+      </div>
+      <div><label id="tm-nlbl">Notes</label><textarea id="tm-notes" style="min-height:55px"></textarea></div>
+    </div>
+    <div class="mact">
+      <button class="btn-c" id="tm-cancel" onclick="Tasks.closeModal()">Cancel</button>
+      <button class="btn-d" id="tm-delete" style="display:none" onclick="Tasks.deleteFromModal()">Delete</button>
+      <button class="btn-s" id="tm-save"   onclick="Tasks.saveTask()">Save Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PIN RESET MODAL ══ -->
+<div class="overlay" id="cp-pin-modal">
+  <div class="modal">
+    <h3>Reset PIN</h3>
+    <div class="mf">
+      <div><label>User</label><input type="text" id="pm-user" readonly style="opacity:.6"></div>
+      <div><label>New PIN (4 digits)</label>
+        <input type="text" id="pm-pin" maxlength="4" placeholder="Enter 4 digits"
+          oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4);document.getElementById('pm-prev').textContent=this.value.padEnd(4,String.fromCharCode(183))">
+      </div>
+      <div class="pin-disp" id="pm-prev">&#183;&#183;&#183;&#183;</div>
+    </div>
+    <div class="mact">
+      <button class="btn-c" onclick="closeModal('cp-pin-modal')">Cancel</button>
+      <button class="btn-s" onclick="ControlPanel.savePin()">Save PIN</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ REMOVE USER MODAL ══ -->
+<div class="overlay" id="cp-rm-modal">
+  <div class="modal">
+    <h3 id="cp-rm-title">Remove User</h3>
+    <p id="cp-rm-msg" style="color:var(--muted);font-size:14px;margin-bottom:4px"></p>
+    <div class="mact">
+      <button class="btn-c" onclick="closeModal('cp-rm-modal')">Cancel</button>
+      <button class="btn-d" onclick="ControlPanel.confirmRemove()">Remove</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ══ SCRIPTS ══ -->
+<script src="/js/api.js"></script>
+<script src="/js/app.js"></script>
+<script src="/apps/petty-cash/petty-cash.js"></script>
+<script src="/apps/daily-report/daily-report.js"></script>
+<script src="/apps/roles/roles.js"></script>
+<script src="/apps/tasks/tasks.js"></script>
+<script src="/apps/profile/profile.js"></script>
+<script src="/apps/control-panel/control-panel.js"></script>
+<script src="/apps/pl-report/pl-report.js"></script>
+<script src="/apps/money-ledger/money-ledger.js"></script>
+<script src="/apps/reimbursements/reimbursements.js"></script>
+<script src="/apps/invoices/invoices.js"></script>
+
+</body>
+</html>
