@@ -50,25 +50,63 @@ function crud(table, fields, orderBy='id DESC') {
   });
 }
 
-// ── Register CRUD for each app ────────────────────────────────────────────
-crud('pl_entries',
+// ── Register CRUD for each app (hyphenated URL paths) ─────────────────────
+
+function crudPath(path, table, fields, orderBy) {
+  orderBy = orderBy || 'id DESC';
+  router.get('/' + path, requireAuth, async function(req, res) {
+    try { res.json(await db.query('SELECT * FROM ' + table + ' ORDER BY ' + orderBy)); }
+    catch(e) { res.status(500).json({ error: e.message }); }
+  });
+  router.post('/' + path, requireAuth, async function(req, res) {
+    try {
+      var cols = fields.filter(function(f){ return req.body[f] !== undefined; });
+      var vals = cols.map(function(f){ return req.body[f]; });
+      var r    = await db.pool.execute(
+        'INSERT INTO ' + table + '(' + cols.join(',') + ') VALUES(' + cols.map(function(){ return '?'; }).join(',') + ')',
+        vals
+      );
+      res.json(await db.getOne('SELECT * FROM ' + table + ' WHERE id=?', [r[0].insertId]));
+    } catch(e) { res.status(500).json({ error: e.message }); }
+  });
+  router.put('/' + path + '/:id', requireAuth, async function(req, res) {
+    try {
+      var cols = fields.filter(function(f){ return req.body[f] !== undefined; });
+      if (!cols.length) return res.json({ ok: true });
+      var vals = cols.map(function(f){ return req.body[f]; }).concat([req.params.id]);
+      await db.pool.execute(
+        'UPDATE ' + table + ' SET ' + cols.map(function(f){ return f + '=?'; }).join(',') + ' WHERE id=?',
+        vals
+      );
+      res.json({ ok: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+  });
+  router.delete('/' + path + '/:id', requireAuth, async function(req, res) {
+    try {
+      await db.pool.execute('DELETE FROM ' + table + ' WHERE id=?', [req.params.id]);
+      res.json({ ok: true });
+    } catch(e) { res.status(500).json({ error: e.message }); }
+  });
+}
+
+crudPath('pl-entries', 'pl_entries',
   ['type','month','year','category','description','amount','note','entered_by'],
   'year DESC, month DESC, id DESC'
 );
 
-crud('money_ledger',
+crudPath('money-ledger', 'money_ledger',
   ['type','person','amount','entry_date','note','settled','entered_by'],
   'entry_date DESC, id DESC'
 );
 
-crud('reimbursements',
+crudPath('reimbursements', 'reimbursements',
   ['paid_by','amount','category','description','paid_date','reference','entered_by',
    'repaid','repaid_amount','repaid_method','repaid_date','repaid_note','repaid_by',
    'pending_approval','req_by'],
   'paid_date DESC, id DESC'
 );
 
-crud('invoices',
+crudPath('invoices', 'invoices',
   ['direction','invoice_number','party_name','total_amount','paid_amount',
    'payment_method','issue_date','due_date','notes','entered_by',
    'last_payment_date','payment_ref','payment_requested','req_by'],
