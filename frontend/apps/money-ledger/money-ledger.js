@@ -185,9 +185,10 @@ window.MoneyLedger = (function() {
   }
 
   function getDir(e) {
+    // direction is always set by backend (parsed from type prefix)
     if (e.direction) return e.direction;
-    // Fallback for old entries
-    var oldCredit = ['salary','bonus','profit','loan_rep','other_in','received'];
+    // Ultimate fallback
+    var oldCredit = ['salary','bonus','profit','loan_rep','other_in','received','Salary','Bonus','Profit Share','Loan Repaid','Other In'];
     return oldCredit.includes(e.type) ? 'credit' : 'debit';
   }
 
