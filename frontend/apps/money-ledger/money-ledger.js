@@ -27,6 +27,17 @@ window.MoneyLedger = (function() {
     try {
       var r = await Promise.all([API.req('GET','/money-ledger'), API.getUsers(), API.req('GET','/ml-categories')]);
       entries = r[0]||[]; allUsers = r[1]||[]; mlCats = r[2]||[];
+      // Normalize entries - fix date format and parse pipe-encoded type
+      entries = entries.map(function(e) {
+        // Fix date display
+        if (e.entry_date) e.entry_date = e.entry_date.slice(0,10);
+        // Parse pipe-encoded direction if not already parsed by backend
+        if (!e.direction && e.type && e.type.includes('|')) {
+          e.direction = e.type.split('|')[0];
+          e.type      = e.type.split('|')[1];
+        }
+        return e;
+      });
     } catch(e) { entries=[]; allUsers=[]; mlCats=[]; }
     if (!canSeeAll()) filterPerson = APP.user.name;
     buildUI();
@@ -209,6 +220,14 @@ window.MoneyLedger = (function() {
     if(!amt||amt<=0)  return toast('Enter a valid amount',true);
     try {
       var entry = await API.req('POST','/money-ledger',{type:cat,direction:currentDir,person:person,amount:amt,entry_date:date,note:note,settled:0,entered_by:APP.user.name});
+      // Normalize returned entry
+      if (entry) {
+        if (entry.entry_date) entry.entry_date = entry.entry_date.slice(0,10);
+        if (!entry.direction && entry.type && entry.type.includes('|')) {
+          entry.direction = entry.type.split('|')[0];
+          entry.type      = entry.type.split('|')[1];
+        }
+      }
       entries.unshift(entry);
       // Clear inputs without rebuilding whole UI (preserves Credit/Debit state)
       var ae=el('ml-amt-inp'); if(ae)ae.value='';
@@ -282,7 +301,7 @@ window.MoneyLedger = (function() {
       var dir=getDir(e), isCredit=dir==='credit';
       var color=isCredit?'var(--green)':'var(--red)';
       rows+='<tr>'+
-        '<td style="font-size:12px;color:var(--muted);white-space:nowrap">'+(e.entry_date||'')+'</td>'+
+        '<td style="font-size:12px;color:var(--muted);white-space:nowrap">'+((e.entry_date||'').slice(0,10))+'</td>'+
         '<td style="font-weight:600">'+e.person+'</td>'+
         '<td><span style="font-size:10px;padding:2px 8px;border-radius:3px;background:rgba(0,0,0,.06);color:'+color+';white-space:nowrap">'+getTypeName(e)+'</span></td>'+
         '<td class="ain">'+(isCredit?'SAR '+fmt(e.amount):'&mdash;')+'</td>'+
@@ -336,13 +355,14 @@ window.MoneyLedger = (function() {
       if(dir==='credit')summary[e.person].credit+=parseFloat(e.amount||0);
       else              summary[e.person].debit +=parseFloat(e.amount||0);
     });
-    // Update card values in DOM without rebuilding
-    document.querySelectorAll('[data-ml-card]').forEach(function(card) {
+    var cards = document.querySelectorAll('[data-ml-card]');
+    if (!cards.length) return; // cards not rendered (non-manager view)
+    cards.forEach(function(card) {
       var n = card.getAttribute('data-ml-card');
-      var s = n==='all' ? null : (summary[n]||{credit:0,debit:0});
       if(n==='all') {
         var cv = card.querySelector('.cv'); if(cv) cv.textContent = entries.length + ' entries';
-      } else if(s) {
+      } else {
+        var s = summary[n]||{credit:0,debit:0};
         var net=s.credit-s.debit;
         var cv=card.querySelector('.cv');
         if(cv){cv.textContent='SAR '+fmt(net);cv.style.color=net>=0?'var(--green)':'var(--red)';}
