@@ -47,7 +47,6 @@ app.get('/api/money-ledger', mlAuth, async (req, res) => {
 app.post('/api/money-ledger', mlAuth, async (req, res) => {
   try {
     var b = req.body;
-    console.log('[ML-POST] received:', JSON.stringify({type:b.type,direction:b.direction,person:b.person}));
     var dir  = b.direction || 'credit';
     var type = dir + '|' + (b.type || '');
     var date = (b.entry_date || new Date().toISOString()).slice(0,10);
@@ -330,7 +329,6 @@ async function runSetup() {
     console.log('[Setup] Categories seeded');
   }
 
-  await conn.end();
   // Seed default Reimbursement categories
   const [rbCatCount] = await conn.execute('SELECT COUNT(*) as c FROM rb_categories');
   if (rbCatCount[0].c === 0) {
@@ -417,6 +415,7 @@ async function runSetup() {
   }
   console.log('[Setup] New app access granted to all existing users');
 
+  await conn.end();
   console.log('[Setup] Done!');
 }
 
