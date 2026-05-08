@@ -100,15 +100,18 @@ router.get('/money-ledger', requireAuth, async function(req, res) {
     var rows = await db.query('SELECT * FROM money_ledger ORDER BY entry_date DESC, id DESC');
     // Parse direction from type field prefix if direction column missing
     rows = rows.map(function(r) {
-      if (!r.direction) {
-        if (r.type && r.type.includes('|')) {
-          r.direction = r.type.split('|')[0];
-          r.type      = r.type.split('|')[1];
-        } else {
-          var creditTypes = ['salary','bonus','profit','loan_rep','other_in','received','Salary','Bonus','Profit Share','Loan Repaid','Other In'];
-          r.direction = creditTypes.includes(r.type) ? 'credit' : 'debit';
-        }
+      // Always parse pipe-encoded type (stored as "credit|Salary" or "debit|Loan Given")
+      if (r.type && r.type.includes('|')) {
+        r.direction = r.type.split('|')[0];
+        r.type      = r.type.split('|')[1];
+      } else if (!r.direction) {
+        // Legacy entries without pipe - infer direction from known credit types
+        var creditTypes = ['salary','bonus','profit','loan_rep','other_in','received',
+                          'Salary','Bonus','Profit Share','Loan Repaid','Other In'];
+        r.direction = creditTypes.includes(r.type) ? 'credit' : 'debit';
       }
+      // Fix date format
+      if (r.entry_date) r.entry_date = String(r.entry_date).slice(0,10);
       return r;
     });
     res.json(rows);
