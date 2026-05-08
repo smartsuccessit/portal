@@ -292,9 +292,15 @@ async function runSetup() {
 
   // Add direction column to money_ledger if missing
   try {
-    await conn.execute("ALTER TABLE money_ledger MODIFY COLUMN type VARCHAR(100) NOT NULL");
-    await conn.execute("ALTER TABLE money_ledger ADD COLUMN IF NOT EXISTS direction ENUM('credit','debit') NOT NULL DEFAULT 'credit'");
-  } catch(e2) { console.log('[Setup] money_ledger alter:', e2.message); }
+    await conn.execute("ALTER TABLE money_ledger MODIFY COLUMN type VARCHAR(100) NOT NULL DEFAULT ''");
+  } catch(e2) { console.log('[Setup] money_ledger type alter:', e2.message); }
+  try {
+    const [mlCols] = await conn.execute("SHOW COLUMNS FROM money_ledger LIKE 'direction'");
+    if (mlCols.length === 0) {
+      await conn.execute("ALTER TABLE money_ledger ADD COLUMN direction ENUM('credit','debit') NOT NULL DEFAULT 'credit' AFTER type");
+      console.log('[Setup] Added direction column to money_ledger');
+    }
+  } catch(e2) { console.log('[Setup] money_ledger direction alter:', e2.message); }
 
   // Seed default ML categories
   const [mlCatCount] = await conn.execute('SELECT COUNT(*) as c FROM ml_categories');

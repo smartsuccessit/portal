@@ -137,6 +137,13 @@ window.MoneyLedger = (function() {
     html += '</div></div></div>';
 
     wrap.innerHTML = html;
+    // Re-apply current direction state to buttons
+    var bc = el('ml-btn-credit'), bd = el('ml-btn-debit');
+    if(bc) bc.className = 'tbtn' + (currentDir==='credit'?' pl-inc':'');
+    if(bd) bd.className = 'tbtn' + (currentDir==='debit'?' pl-exp':'');
+    // Re-populate category dropdown
+    var cat = el('ml-cat-sel');
+    if(cat) cat.innerHTML = getCatOptions(currentDir);
     renderList();
   }
 
@@ -198,7 +205,7 @@ window.MoneyLedger = (function() {
       entries.unshift(entry);
       var ae=el('ml-amt-inp'); if(ae)ae.value='';
       var ne=el('ml-note-inp'); if(ne)ne.value='';
-      renderList(); toast('Entry added');
+      buildUI(); toast('Entry added');
     } catch(e){toast(e.message,true);}
   }
 
@@ -229,7 +236,7 @@ window.MoneyLedger = (function() {
       await API.req('PUT','/money-ledger/'+editingId,{type:cat,direction:dir,person:person,amount:amt,entry_date:date,note:note});
       var e=entries.find(function(x){return x.id===editingId;});
       if(e){e.type=cat;e.direction=dir;e.person=person;e.amount=amt;e.entry_date=date;e.note=note;}
-      closeModal('ml-edit-modal'); renderList(); toast('Entry updated');
+      closeModal('ml-edit-modal'); buildUI(); toast('Entry updated');
     } catch(e2){toast(e2.message,true);}
   }
 
@@ -238,7 +245,7 @@ window.MoneyLedger = (function() {
     try{
       await API.req('DELETE','/money-ledger/'+id);
       entries=entries.filter(function(x){return x.id!==id;});
-      renderList(); toast('Deleted');
+      buildUI(); toast('Deleted');
     }catch(e){toast(e.message,true);}
   }
 
