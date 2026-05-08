@@ -185,18 +185,24 @@ window.MoneyLedger = (function() {
   }
 
   function getDir(e) {
-    // direction is always set by backend (parsed from type prefix)
     if (e.direction) return e.direction;
-    // Ultimate fallback
+    // Parse from pipe-encoded type field
+    if (e.type && e.type.includes('|')) return e.type.split('|')[0];
+    // Legacy fallback
     var oldCredit = ['salary','bonus','profit','loan_rep','other_in','received','Salary','Bonus','Profit Share','Loan Repaid','Other In'];
     return oldCredit.includes(e.type) ? 'credit' : 'debit';
+  }
+
+  function getTypeName(e) {
+    if (e.type && e.type.includes('|')) return e.type.split('|')[1];
+    return e.type || '';
   }
 
   async function addEntry() {
     var person = canSeeAll() ? ((el('ml-person-sel')||{value:APP.user.name}).value||APP.user.name) : APP.user.name;
     var cat    = (el('ml-cat-sel') ||{value:''}).value;
     var amt    = parseFloat((el('ml-amt-inp')||{value:0}).value);
-    var date   = (el('ml-date-inp')||{value:toDateStr()}).value;
+    var date   = ((el('ml-date-inp')||{value:toDateStr()}).value||toDateStr()).slice(0,10);
     var note   = (el('ml-note-inp')||{value:''}).value.trim();
     if(!person)       return toast('Select a team member',true);
     if(!cat)          return toast('Select a category',true);
@@ -233,7 +239,7 @@ window.MoneyLedger = (function() {
     var dir    = catEl ? (catEl.dataset.dir||'credit') : 'credit';
     var cat    = (catEl||{value:''}).value;
     var amt    = parseFloat((el('ml-em-amt')||{value:0}).value);
-    var date   = (el('ml-em-date')||{value:''}).value;
+    var date   = ((el('ml-em-date')||{value:''}).value||'').slice(0,10);
     var note   = (el('ml-em-note')||{value:''}).value.trim();
     if(!person)      return toast('Select a team member',true);
     if(!amt||amt<=0) return toast('Enter a valid amount',true);
@@ -278,7 +284,7 @@ window.MoneyLedger = (function() {
       rows+='<tr>'+
         '<td style="font-size:12px;color:var(--muted);white-space:nowrap">'+(e.entry_date||'')+'</td>'+
         '<td style="font-weight:600">'+e.person+'</td>'+
-        '<td><span style="font-size:10px;padding:2px 8px;border-radius:3px;background:rgba(0,0,0,.06);color:'+color+';white-space:nowrap">'+(e.type||'')+'</span></td>'+
+        '<td><span style="font-size:10px;padding:2px 8px;border-radius:3px;background:rgba(0,0,0,.06);color:'+color+';white-space:nowrap">'+getTypeName(e)+'</span></td>'+
         '<td class="ain">'+(isCredit?'SAR '+fmt(e.amount):'&mdash;')+'</td>'+
         '<td class="aout">'+(!isCredit?'SAR '+fmt(e.amount):'&mdash;')+'</td>'+
         '<td style="font-size:11px;color:var(--muted)">'+(e.note||'')+'</td>'+
