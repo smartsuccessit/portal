@@ -62,8 +62,8 @@ window.PLReport = (function() {
       '<div class="layout" style="grid-template-columns:360px 1fr">' +
         '<div class="panel"><div class="ph dark">+ New Entry</div><div class="fb">' +
           '<div class="ttype">' +
-            '<button class="tbtn pl-inc active" id="pl-btn-inc" onclick="PLReport.setType(\"income\")">&#8593; Income</button>' +
-            '<button class="tbtn"    id="pl-btn-exp" onclick="PLReport.setType(\"expense\")">&#8595; Expense</button>' +
+            '<button class="tbtn pl-inc" id="pl-btn-inc" onclick="PLReport.setType(this,\'income\')">&#8593; Income</button>' +
+            '<button class="tbtn" id="pl-btn-exp" onclick="PLReport.setType(this,\'expense\')">&#8595; Expense</button>' +
           '</div>' +
           '<div><label>Month</label><select id="pl-month" style="padding:9px 12px;border:1px solid var(--bord);border-radius:6px;background:var(--surf2);color:var(--text);font-size:14px;width:100%">' + monthOpts + '</select></div>' +
           '<div><label>Category</label><select id="pl-cat">' + getCatOptions('income') + '</select></div>' +
@@ -77,9 +77,9 @@ window.PLReport = (function() {
           '<div class="sw"><table class="ltbl"><thead><tr><th>Month</th><th>Income</th><th>Expenses</th><th>Net Profit</th><th>Margin</th></tr></thead><tbody id="pl-tbody"></tbody></table></div></div>' +
           '<div class="panel"><div class="ph dark">Entries' +
             '<div style="display:flex;gap:6px">' +
-              '<button class="fbtn on" style="color:#fff;border-color:rgba(255,255,255,.3)" onclick="PLReport.filterType(\"all\",this)">All</button>' +
-              '<button class="fbtn" style="color:rgba(255,255,255,.6)" onclick="PLReport.filterType(\"income\",this)">Income</button>' +
-              '<button class="fbtn" style="color:rgba(255,255,255,.6)" onclick="PLReport.filterType(\"expense\",this)">Expense</button>' +
+              '<button class="fbtn on" style="color:#fff;border-color:rgba(255,255,255,.3)" onclick="PLReport.filterType(this,\'all\')">All</button>' +
+              '<button class="fbtn" style="color:rgba(255,255,255,.6)" onclick="PLReport.filterType(this,\'income\')">Income</button>' +
+              '<button class="fbtn" style="color:rgba(255,255,255,.6)" onclick="PLReport.filterType(this,\'expense\')">Expense</button>' +
               '<select id="pl-filter-month" onchange="PLReport.renderEntries()" style="margin-left:auto;padding:4px 8px;border:1px solid rgba(255,255,255,.3);border-radius:4px;background:rgba(255,255,255,.1);color:#fff;font-size:11px">' + filterMonthOpts + '</select>' +
             '</div>' +
           '</div>' +
@@ -92,19 +92,23 @@ window.PLReport = (function() {
     renderEntries();
   }
 
-  function setType(t) {
+  function setType(btnOrType, type) {
+    // handle both setType('income') and setType(this, 'income')
+    var t = (type !== undefined) ? type : btnOrType;
     currentType = t;
     var btnI = el('pl-btn-inc'), btnE = el('pl-btn-exp');
-    if(btnI) btnI.className = 'tbtn' + (t==='income'?' pl-inc active':'');
-    if(btnE) btnE.className = 'tbtn' + (t==='expense'?' pl-exp active':'');
+    if(btnI) btnI.className = 'tbtn' + (t==='income'?' pl-inc':'');
+    if(btnE) btnE.className = 'tbtn' + (t==='expense'?' pl-exp':'');
     var cat = el('pl-cat');
     if (cat) cat.innerHTML = getCatOptions(t);
   }
 
-  function filterType(t, btn) {
+  function filterType(btnOrType, type) {
+    var t = (type !== undefined) ? type : btnOrType;
+    var btn = (type !== undefined) ? btnOrType : null;
     typeFilter = t;
     document.querySelectorAll('.lctrl .fbtn').forEach(function(b){b.classList.remove('on');});
-    btn.classList.add('on');
+    if(btn) btn.classList.add('on');
     renderEntries();
   }
 
