@@ -24,12 +24,15 @@ app.use('/api/settings',     require('./routes/settings'));
 var mlCredit = ['salary','bonus','profit','loan_rep','other_in','received','Salary','Bonus','Profit Share','Loan Repaid','Other In'];
 function parseMLRow(r) {
   if (r.entry_date) r.entry_date = String(r.entry_date).slice(0,10);
+  // Pipe-encoded: "credit|Salary" -> {direction:'credit', type:'Salary'}
   if (r.type && r.type.includes('|')) {
-    var parts = r.type.split('|'); r.direction = parts[0]; r.type = parts.slice(1).join('|');
-  } else if (!r.direction || r.direction === '' || r.direction === 'credit' || r.direction === 'debit') {
-    if (r.type && r.type.includes('|')) { /* already handled */ }
-    else if (!r.type || r.type.trim() === '') { r.direction = r.direction || 'debit'; r.type = ''; }
-    else { r.direction = mlCredit.includes(r.type.trim()) ? 'credit' : 'debit'; }
+    var parts = r.type.split('|');
+    r.direction = parts[0];
+    r.type = parts.slice(1).join('|');
+  } else {
+    // No pipe: infer direction from type name
+    r.direction = mlCredit.includes((r.type||'').trim()) ? 'credit' : 'debit';
+    // Keep type as-is (may be empty for old broken entries)
   }
   return r;
 }
