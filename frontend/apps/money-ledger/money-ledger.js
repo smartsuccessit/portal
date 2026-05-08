@@ -211,7 +211,13 @@ window.MoneyLedger = (function() {
 
   async function addEntry() {
     var person = canSeeAll() ? ((el('ml-person-sel')||{value:APP.user.name}).value||APP.user.name) : APP.user.name;
-    var cat    = (el('ml-cat-sel') ||{value:''}).value;
+    var catEl  = el('ml-cat-sel');
+    var cat    = catEl ? catEl.value : '';
+    // If category empty, repopulate and use first option
+    if (!cat && catEl) {
+      catEl.innerHTML = getCatOptions(currentDir);
+      cat = catEl.value;
+    }
     var amt    = parseFloat((el('ml-amt-inp')||{value:0}).value);
     var date   = ((el('ml-date-inp')||{value:toDateStr()}).value||toDateStr()).slice(0,10);
     var note   = (el('ml-note-inp')||{value:''}).value.trim();
@@ -220,10 +226,10 @@ window.MoneyLedger = (function() {
     if(!amt||amt<=0)  return toast('Enter a valid amount',true);
     try {
       var entry = await API.req('POST','/money-ledger',{type:cat,direction:currentDir,person:person,amount:amt,entry_date:date,note:note,settled:0,entered_by:APP.user.name});
-      // Normalize returned entry
+      // Normalize returned entry - always parse pipe even if direction exists
       if (entry) {
         if (entry.entry_date) entry.entry_date = entry.entry_date.slice(0,10);
-        if (!entry.direction && entry.type && entry.type.includes('|')) {
+        if (entry.type && entry.type.includes('|')) {
           entry.direction = entry.type.split('|')[0];
           entry.type      = entry.type.split('|')[1];
         }
@@ -346,6 +352,7 @@ window.MoneyLedger = (function() {
   }
 
   function updateSummaryCards() {
+    if (!canSeeAll()) return;
     var names = allUsers.map(function(u){return u.name;});
     var summary = {};
     names.forEach(function(n){summary[n]={credit:0,debit:0};});
@@ -355,20 +362,18 @@ window.MoneyLedger = (function() {
       if(dir==='credit')summary[e.person].credit+=parseFloat(e.amount||0);
       else              summary[e.person].debit +=parseFloat(e.amount||0);
     });
-    var cards = document.querySelectorAll('[data-ml-card]');
-    if (!cards.length) return; // cards not rendered (non-manager view)
-    cards.forEach(function(card) {
-      var n = card.getAttribute('data-ml-card');
-      if(n==='all') {
-        var cv = card.querySelector('.cv'); if(cv) cv.textContent = entries.length + ' entries';
-      } else {
-        var s = summary[n]||{credit:0,debit:0};
-        var net=s.credit-s.debit;
-        var cv=card.querySelector('.cv');
-        if(cv){cv.textContent='SAR '+fmt(net);cv.style.color=net>=0?'var(--green)':'var(--red)';}
-        var sub=card.querySelector('[data-sub]');
-        if(sub)sub.textContent='In: '+fmt(s.credit)+' | Out: '+fmt(s.debit);
-      }
+    // All Members card
+    var allCard = document.querySelector('[data-ml-card="all"]');
+    if(allCard){var cv=allCard.querySelector('.cv');if(cv)cv.textContent=entries.length+' entries';}
+    // Person cards
+    names.forEach(function(n){
+      var card=document.querySelector('[data-ml-card="'+n+'"]');
+      if(!card)return;
+      var s=summary[n]||{credit:0,debit:0},net=s.credit-s.debit;
+      var cv=card.querySelector('.cv');
+      if(cv){cv.textContent='SAR '+fmt(net);cv.style.color=net>=0?'var(--green)':'var(--red)';}
+      var sub=card.querySelector('[data-sub]');
+      if(sub)sub.textContent='In: '+fmt(s.credit)+' | Out: '+fmt(s.debit);
     });
   }
 
