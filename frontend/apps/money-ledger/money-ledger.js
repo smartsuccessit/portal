@@ -227,15 +227,9 @@ window.MoneyLedger = (function() {
     if(!amt||amt<=0)  return toast('Enter a valid amount',true);
     try {
       var entry = await API.req('POST','/money-ledger',{type:cat,direction:currentDir,person:person,amount:amt,entry_date:date,note:note,settled:0,entered_by:APP.user.name});
-      // Normalize returned entry - always parse pipe even if direction exists
-      if (entry) {
-        if (entry.entry_date) entry.entry_date = entry.entry_date.slice(0,10);
-        if (entry.type && entry.type.includes('|')) {
-          entry.direction = entry.type.split('|')[0];
-          entry.type      = entry.type.split('|')[1];
-        }
-      }
-      entries.unshift(entry);
+      // Build entry from known local values - reliable regardless of backend response format
+      var newEntry = { id: entry ? entry.id : Date.now(), direction: currentDir, type: cat, person: person, amount: amt, entry_date: date, note: note, entered_by: APP.user.name };
+      entries.unshift(newEntry);
       // Clear inputs without rebuilding whole UI (preserves Credit/Debit state)
       var ae=el('ml-amt-inp'); if(ae)ae.value='';
       var ne=el('ml-note-inp'); if(ne)ne.value='';
@@ -273,7 +267,7 @@ window.MoneyLedger = (function() {
       await API.req('PUT','/money-ledger/'+editingId,{type:cat,direction:dir,person:person,amount:amt,entry_date:date,note:note});
       var e=entries.find(function(x){return x.id===editingId;});
       if(e){e.type=cat;e.direction=dir;e.person=person;e.amount=amt;e.entry_date=date;e.note=note;}
-      closeModal('ml-edit-modal'); updateSummaryCards(); renderList(); toast('Entry updated');
+      closeModal('ml-edit-modal'); buildUI(); toast('Entry updated');
     } catch(e2){toast(e2.message,true);}
   }
 
@@ -282,8 +276,7 @@ window.MoneyLedger = (function() {
     try{
       await API.req('DELETE','/money-ledger/'+id);
       entries=entries.filter(function(x){return x.id!==id;});
-      updateSummaryCards();
-      renderList();
+      buildUI();
       toast('Deleted');
     }catch(e){toast(e.message,true);}
   }
