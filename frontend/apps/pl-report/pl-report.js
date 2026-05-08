@@ -62,7 +62,7 @@ window.PLReport = (function() {
       '<div class="layout" style="grid-template-columns:360px 1fr">' +
         '<div class="panel"><div class="ph dark">+ New Entry</div><div class="fb">' +
           '<div class="ttype">' +
-            '<button class="tbtn ti" id="pl-btn-inc" onclick="PLReport.setType(\"income\")">&#8593; Income</button>' +
+            '<button class="tbtn pl-inc active" id="pl-btn-inc" onclick="PLReport.setType(\"income\")">&#8593; Income</button>' +
             '<button class="tbtn"    id="pl-btn-exp" onclick="PLReport.setType(\"expense\")">&#8595; Expense</button>' +
           '</div>' +
           '<div><label>Month</label><select id="pl-month" style="padding:9px 12px;border:1px solid var(--bord);border-radius:6px;background:var(--surf2);color:var(--text);font-size:14px;width:100%">' + monthOpts + '</select></div>' +
@@ -95,8 +95,8 @@ window.PLReport = (function() {
   function setType(t) {
     currentType = t;
     var btnI = el('pl-btn-inc'), btnE = el('pl-btn-exp');
-    if(btnI) btnI.className = 'tbtn' + (t==='income'?' ti':'');
-    if(btnE) btnE.className = 'tbtn' + (t==='expense'?' to':'');
+    if(btnI) btnI.className = 'tbtn' + (t==='income'?' pl-inc active':'');
+    if(btnE) btnE.className = 'tbtn' + (t==='expense'?' pl-exp active':'');
     var cat = el('pl-cat');
     if (cat) cat.innerHTML = getCatOptions(t);
   }
