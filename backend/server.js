@@ -20,6 +20,63 @@ app.use('/api/petty-cash',   require('./routes/petty-cash'));
 app.use('/api/tasks',        require('./routes/tasks'));
 app.use('/api/daily-report', require('./routes/daily-report'));
 app.use('/api/settings',     require('./routes/settings'));
+// ── Money Ledger inline routes (robust, no extras.js dependency) ─────────
+var mlCredit = ['salary','bonus','profit','loan_rep','other_in','received','Salary','Bonus','Profit Share','Loan Repaid','Other In'];
+function parseMLRow(r) {
+  if (r.entry_date) r.entry_date = String(r.entry_date).slice(0,10);
+  if (r.type && r.type.includes('|')) {
+    var parts = r.type.split('|'); r.direction = parts[0]; r.type = parts.slice(1).join('|');
+  } else if (!r.direction || r.direction === '' || r.direction === 'credit' || r.direction === 'debit') {
+    if (r.type && r.type.includes('|')) { /* already handled */ }
+    else if (!r.type || r.type.trim() === '') { r.direction = r.direction || 'debit'; r.type = ''; }
+    else { r.direction = mlCredit.includes(r.type.trim()) ? 'credit' : 'debit'; }
+  }
+  return r;
+}
+const db2 = require('./db');
+const { requireAuth: mlAuth } = require('./middleware/auth');
+app.get('/api/money-ledger', mlAuth, async (req, res) => {
+  try {
+    var rows = await db2.query('SELECT * FROM money_ledger ORDER BY entry_date DESC, id DESC');
+    res.json(rows.map(parseMLRow));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/money-ledger', mlAuth, async (req, res) => {
+  try {
+    var b = req.body;
+    var dir  = b.direction || 'credit';
+    var type = dir + '|' + (b.type || '');
+    var date = (b.entry_date || new Date().toISOString()).slice(0,10);
+    var [r] = await db2.pool.execute(
+      'INSERT INTO money_ledger(type,person,amount,entry_date,note,settled,entered_by) VALUES(?,?,?,?,?,?,?)',
+      [type, b.person||'', b.amount||0, date, b.note||'', b.settled||0, req.user.name]
+    );
+    var row = await db2.getOne('SELECT * FROM money_ledger WHERE id=?', [r.insertId]);
+    res.json(parseMLRow(row));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.put('/api/money-ledger/:id', mlAuth, async (req, res) => {
+  try {
+    var b = req.body;
+    var dir  = b.direction || 'credit';
+    var type = dir + '|' + (b.type || '');
+    var date = b.entry_date ? b.entry_date.slice(0,10) : null;
+    var sets = ['type=?']; var vals = [type];
+    if (b.person     !== undefined) { sets.push('person=?');     vals.push(b.person); }
+    if (b.amount     !== undefined) { sets.push('amount=?');     vals.push(b.amount); }
+    if (date)                       { sets.push('entry_date=?'); vals.push(date); }
+    if (b.note       !== undefined) { sets.push('note=?');       vals.push(b.note); }
+    if (b.settled    !== undefined) { sets.push('settled=?');    vals.push(b.settled); }
+    vals.push(req.params.id);
+    await db2.pool.execute('UPDATE money_ledger SET '+sets.join(',')+'  WHERE id=?', vals);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+app.delete('/api/money-ledger/:id', mlAuth, async (req, res) => {
+  try { await db2.pool.execute('DELETE FROM money_ledger WHERE id=?', [req.params.id]); res.json({ ok: true }); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.use('/api',              require('./routes/extras'));
 app.get('/api/health',       (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
