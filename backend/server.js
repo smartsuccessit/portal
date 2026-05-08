@@ -161,7 +161,8 @@ async function runSetup() {
 
     CREATE TABLE IF NOT EXISTS money_ledger (
       id          INT AUTO_INCREMENT PRIMARY KEY,
-      type        ENUM('gave','received','lent','borrowed') NOT NULL,
+      type        VARCHAR(100) NOT NULL,
+      direction   ENUM('credit','debit') NOT NULL DEFAULT 'credit',
       person      VARCHAR(200) NOT NULL,
       amount      DECIMAL(12,2) NOT NULL,
       entry_date  DATE NOT NULL,
@@ -170,6 +171,14 @@ async function runSetup() {
       entered_by  VARCHAR(100) NOT NULL,
       created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_ml_person (person)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+    CREATE TABLE IF NOT EXISTS ml_categories (
+      id        INT AUTO_INCREMENT PRIMARY KEY,
+      direction ENUM('credit','debit') NOT NULL,
+      name_en   VARCHAR(200) NOT NULL,
+      name_ar   VARCHAR(200) NOT NULL DEFAULT '',
+      sort      INT NOT NULL DEFAULT 0
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
     CREATE TABLE IF NOT EXISTS reimbursements (
@@ -279,6 +288,33 @@ async function runSetup() {
     for(let i=0;i<incCats.length;i++) await conn.execute('INSERT INTO pl_categories(type,name_en,name_ar,sort) VALUES(?,?,?,?)',['income',...incCats[i],i]);
     for(let i=0;i<expCats.length;i++) await conn.execute('INSERT INTO pl_categories(type,name_en,name_ar,sort) VALUES(?,?,?,?)',['expense',...expCats[i],i]);
     console.log('[Setup] P&L categories seeded');
+  }
+
+  // Add direction column to money_ledger if missing
+  try {
+    await conn.execute("ALTER TABLE money_ledger MODIFY COLUMN type VARCHAR(100) NOT NULL");
+    await conn.execute("ALTER TABLE money_ledger ADD COLUMN IF NOT EXISTS direction ENUM('credit','debit') NOT NULL DEFAULT 'credit'");
+  } catch(e2) { console.log('[Setup] money_ledger alter:', e2.message); }
+
+  // Seed default ML categories
+  const [mlCatCount] = await conn.execute('SELECT COUNT(*) as c FROM ml_categories');
+  if (mlCatCount[0].c === 0) {
+    const creditCats = [
+      ['Salary','راتب'],['Bonus','مكافأة'],
+      ['Profit Share','حصة الأرباح'],
+      ['Loan Repaid','سداد قرض'],
+      ['Other In','إيراد آخر']
+    ];
+    const debitCats = [
+      ['Loan Given','قرض معطى'],
+      ['Advance','سلفة'],
+      ['Deduction','خصم'],
+      ['Expense','مصروف'],
+      ['Other Out','صرف آخر']
+    ];
+    for(let i=0;i<creditCats.length;i++) await conn.execute('INSERT INTO ml_categories(direction,name_en,name_ar,sort) VALUES(?,?,?,?)',['credit',...creditCats[i],i]);
+    for(let i=0;i<debitCats.length;i++)  await conn.execute('INSERT INTO ml_categories(direction,name_en,name_ar,sort) VALUES(?,?,?,?)',['debit',...debitCats[i],i]);
+    console.log('[Setup] ML categories seeded');
   }
 
   // Grant new apps to ALL existing users who don't have them yet

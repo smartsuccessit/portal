@@ -95,7 +95,7 @@ crudPath('pl-entries', 'pl_entries',
 );
 
 crudPath('money-ledger', 'money_ledger',
-  ['type','person','amount','entry_date','note','settled','entered_by'],
+  ['type','direction','person','amount','entry_date','note','settled','entered_by'],
   'entry_date DESC, id DESC'
 );
 
@@ -170,6 +170,30 @@ router.delete('/invoice-payments/:id', requireAuth, async (req, res) => {
     await db.pool.execute('UPDATE invoices SET paid_amount=? WHERE id=?',[newPaid, pay.invoice_id]);
     res.json({ ok: true, new_paid: newPaid });
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Money Ledger Categories
+router.get('/ml-categories', requireAuth, async function(req, res) {
+  try { res.json(await db.query('SELECT * FROM ml_categories ORDER BY direction, sort')); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+router.post('/ml-categories', requireAuth, async function(req, res) {
+  try {
+    var _a = req.body, direction = _a.direction, name_en = _a.name_en, name_ar = _a.name_ar; if(!name_ar) name_ar=''; var sort = _a.sort||99;
+    var r = await db.pool.execute('INSERT INTO ml_categories(direction,name_en,name_ar,sort) VALUES(?,?,?,?)',[direction,name_en,name_ar,sort]);
+    res.json(await db.getOne('SELECT * FROM ml_categories WHERE id=?',[r[0].insertId]));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+router.put('/ml-categories/:id', requireAuth, async function(req, res) {
+  try {
+    var _a = req.body, name_en = _a.name_en, name_ar = _a.name_ar;
+    await db.pool.execute('UPDATE ml_categories SET name_en=?,name_ar=? WHERE id=?',[name_en,name_ar,req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+router.delete('/ml-categories/:id', requireAuth, async function(req, res) {
+  try { await db.pool.execute('DELETE FROM ml_categories WHERE id=?',[req.params.id]); res.json({ ok: true }); }
+  catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // Reimbursement Categories

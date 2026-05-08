@@ -3,7 +3,7 @@
  * Fixed: all users in access list, P&L categories editor
  */
 window.ControlPanel = (() => {
-  let users = [], settings = {}, cats = [], plCats = [], rbCats = [];
+  let users = [], settings = {}, cats = [], plCats = [], rbCats = [], mlCats = [];
   const ALL_APPS = ['petty-cash','daily-report','tasks','roles','profile','pl-report','money-ledger','reimbursements','invoices'];
   let rmUserId = null, pinUserId = null;
 
@@ -13,6 +13,7 @@ window.ControlPanel = (() => {
       [users, settings, cats] = await Promise.all([API.getUsers(), API.getSettings(), API.getCategories()]);
       try { plCats = await API.req('GET', '/pl-categories'); } catch(e) { plCats = []; }
       try { rbCats = await API.req('GET', '/rb-categories'); } catch(e) { rbCats = []; }
+      try { mlCats = await API.req('GET', '/ml-categories'); } catch(e) { mlCats = []; }
     } catch(e) { wrap.innerHTML = `<div class="empty">Error: ${e.message}</div>`; return; }
     buildUI(wrap);
   }
@@ -31,6 +32,7 @@ window.ControlPanel = (() => {
       <div class="cps" style="grid-column:span 2"><div class="cph"><span>&#128176;</span><h3>${t('cpCats')} — Petty Cash</h3></div><div class="cpb" id="cp-cats"></div></div>
       <div class="cps" style="grid-column:span 2"><div class="cph"><span>&#128200;</span><h3>P&amp;L Report Categories</h3></div><div class="cpb" id="cp-pl-cats"></div></div>
       <div class="cps" style="grid-column:span 2"><div class="cph"><span>&#128179;</span><h3>Reimbursement Categories</h3></div><div class="cpb" id="cp-rb-cats"></div></div>
+      <div class="cps" style="grid-column:span 2"><div class="cph"><span>&#128176;</span><h3>Money Ledger Categories</h3></div><div class="cpb" id="cp-ml-cats"></div></div>
     </div>
     <div class="overlay" id="cp-pin-modal"><div class="modal"><h3>Reset PIN</h3><div class="mf">
       <div><label>User</label><input type="text" id="pm-user" readonly style="opacity:.6"></div>
@@ -41,7 +43,7 @@ window.ControlPanel = (() => {
       <p id="cp-rm-msg" style="color:var(--muted);font-size:14px;margin-bottom:4px"></p>
       <div class="mact"><button class="btn-c" onclick="closeModal('cp-rm-modal')">Cancel</button><button class="btn-d" onclick="ControlPanel.confirmRemove()">Remove</button></div>
     </div></div>`;
-    renderUsers(); renderAccess(); renderPins(); renderPerms(); renderCats(); renderPLCats(); renderRBCats();
+    renderUsers(); renderAccess(); renderPins(); renderPerms(); renderCats(); renderPLCats(); renderRBCats(); renderMLCats();
   }
 
   function renderUsers() {
@@ -272,5 +274,33 @@ window.ControlPanel = (() => {
     try{await API.req('DELETE',`/rb-categories/${id}`);rbCats=rbCats.filter(c=>c.id!==id);renderRBCats();toast('Category removed');}catch(e){toast(e.message,true);}
   }
 
-  return {render,addUser,askRemove,confirmRemove,toggleAccess,openPin,savePin,setApprover,setDeleter,updateCat,addCat,deleteCat,updatePLCat,addPLCat,deletePLCat,renderRBCats,updateRBCat,addRBCat,deleteRBCat};
+  function renderMLCats() {
+    var el2=el('cp-ml-cats'); if(!el2)return;
+    function mlSection(dir, label, color) {
+      var list = mlCats.filter(function(c){return c.direction===dir;});
+      return '<div style="flex:1;min-width:280px">' +
+        '<div style="font-size:11px;font-weight:700;color:'+color+';text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">'+label+'</div>' +
+        catGrid(list, dir, 'ControlPanel.updateMLCat','ControlPanel.deleteMLCat','ControlPanel.addMLCat','mlcat-en-'+dir,'mlcat-ar-'+dir) +
+        '</div>';
+    }
+    el2.innerHTML = '<div style="display:flex;gap:32px;flex-wrap:wrap">' +
+      mlSection('credit','&#8593; Credit Categories','var(--green)') +
+      mlSection('debit', '&#8595; Debit Categories', 'var(--red)') +
+      '</div>';
+  }
+  async function updateMLCat(input) {
+    var id=Number(input.dataset.id),field=input.dataset.field,cat=mlCats.find(function(c){return c.id===id;});if(!cat)return;
+    cat[field]=input.value.trim();
+    try{await API.req('PUT','/ml-categories/'+id,{name_en:cat.name_en,name_ar:cat.name_ar});toast('Category saved');}catch(e){toast(e.message,true);}
+  }
+  async function addMLCat(type) {
+    var en=(el('mlcat-en-'+type)||{value:''}).value.trim(),ar=(el('mlcat-ar-'+type)||{value:''}).value.trim();
+    if(!en)return toast('Enter English name.',true);
+    try{var c=await API.req('POST','/ml-categories',{direction:type,name_en:en,name_ar:ar||en});mlCats.push(c);renderMLCats();toast('Category added');}catch(e){toast(e.message,true);}
+  }
+  async function deleteMLCat(id) {
+    try{await API.req('DELETE','/ml-categories/'+id);mlCats=mlCats.filter(function(c){return c.id!==id;});renderMLCats();toast('Category removed');}catch(e){toast(e.message,true);}
+  }
+
+  return {render,addUser,askRemove,confirmRemove,toggleAccess,openPin,savePin,setApprover,setDeleter,updateCat,addCat,deleteCat,updatePLCat,addPLCat,deletePLCat,renderRBCats,updateRBCat,addRBCat,deleteRBCat,renderMLCats,updateMLCat,addMLCat,deleteMLCat};
 })();
