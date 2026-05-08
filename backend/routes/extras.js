@@ -94,54 +94,60 @@ crudPath('pl-entries', 'pl_entries',
   'year DESC, month DESC, id DESC'
 );
 
-// Money Ledger - explicit routes to handle optional direction column
+// Money Ledger — stores direction as prefix in type field: "credit|Salary" or "debit|Loan Given"
 router.get('/money-ledger', requireAuth, async function(req, res) {
-  try { res.json(await db.query('SELECT * FROM money_ledger ORDER BY entry_date DESC, id DESC')); }
-  catch(e) { res.status(500).json({ error: e.message }); }
+  try {
+    var rows = await db.query('SELECT * FROM money_ledger ORDER BY entry_date DESC, id DESC');
+    // Parse direction from type field prefix if direction column missing
+    rows = rows.map(function(r) {
+      if (!r.direction) {
+        if (r.type && r.type.includes('|')) {
+          r.direction = r.type.split('|')[0];
+          r.type      = r.type.split('|')[1];
+        } else {
+          var creditTypes = ['salary','bonus','profit','loan_rep','other_in','received','Salary','Bonus','Profit Share','Loan Repaid','Other In'];
+          r.direction = creditTypes.includes(r.type) ? 'credit' : 'debit';
+        }
+      }
+      return r;
+    });
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 router.post('/money-ledger', requireAuth, async function(req, res) {
   try {
     var b = req.body;
-    // Check if direction column exists
-    var cols = ['type','person','amount','entry_date','note','settled','entered_by'];
-    var vals = [b.type||'', b.person||'', b.amount||0, b.entry_date||new Date().toISOString().slice(0,10), b.note||'', b.settled||0, req.user.name];
-    // Try with direction first, fall back without
-    try {
-      var r = await db.pool.execute(
-        'INSERT INTO money_ledger(type,direction,person,amount,entry_date,note,settled,entered_by) VALUES(?,?,?,?,?,?,?,?)',
-        [b.type||'', b.direction||'credit', b.person||'', b.amount||0, b.entry_date||new Date().toISOString().slice(0,10), b.note||'', b.settled||0, req.user.name]
-      );
-      res.json(await db.getOne('SELECT * FROM money_ledger WHERE id=?', [r[0].insertId]));
-    } catch(e2) {
-      // direction column missing - insert without it
-      if (e2.message && e2.message.includes('direction')) {
-        var r2 = await db.pool.execute(
-          'INSERT INTO money_ledger(type,person,amount,entry_date,note,settled,entered_by) VALUES(?,?,?,?,?,?,?)',
-          vals
-        );
-        res.json(await db.getOne('SELECT * FROM money_ledger WHERE id=?', [r2[0].insertId]));
-      } else { throw e2; }
+    var dir  = b.direction || 'credit';
+    var type = dir + '|' + (b.type || '');
+    var date = (b.entry_date || new Date().toISOString()).slice(0,10);
+    var r = await db.pool.execute(
+      'INSERT INTO money_ledger(type,person,amount,entry_date,note,settled,entered_by) VALUES(?,?,?,?,?,?,?)',
+      [type, b.person||'', b.amount||0, date, b.note||'', b.settled||0, req.user.name]
+    );
+    var row = await db.getOne('SELECT * FROM money_ledger WHERE id=?', [r[0].insertId]);
+    if (row && row.type && row.type.includes('|')) {
+      row.direction = row.type.split('|')[0];
+      row.type      = row.type.split('|')[1];
     }
+    res.json(row);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 router.put('/money-ledger/:id', requireAuth, async function(req, res) {
   try {
     var b = req.body;
-    var fields = ['type','person','amount','entry_date','note','settled'];
-    var vals = fields.filter(function(f){return b[f]!==undefined;});
-    // Try with direction
-    try {
-      var allFields = vals.concat(['direction']);
-      var allVals = allFields.map(function(f){return b[f]!==undefined?b[f]:(f==='direction'?'credit':null);});
-      allVals.push(req.params.id);
-      await db.pool.execute('UPDATE money_ledger SET '+allFields.map(function(f){return f+'=?';}).join(',')+'  WHERE id=?', allVals);
-    } catch(e2) {
-      if (e2.message && e2.message.includes('direction')) {
-        var safeVals = vals.map(function(f){return b[f];});
-        safeVals.push(req.params.id);
-        await db.pool.execute('UPDATE money_ledger SET '+vals.map(function(f){return f+'=?';}).join(',')+'  WHERE id=?', safeVals);
-      } else { throw e2; }
+    var updates = [];
+    var vals = [];
+    if (b.type !== undefined) {
+      var dir = b.direction || 'credit';
+      updates.push('type=?'); vals.push(dir + '|' + b.type);
     }
+    if (b.entry_date !== undefined) { b.entry_date = b.entry_date.slice(0,10); }
+    ['person','amount','entry_date','note','settled'].forEach(function(f) {
+      if (b[f] !== undefined) { updates.push(f+'=?'); vals.push(b[f]); }
+    });
+    if (!updates.length) return res.json({ ok: true });
+    vals.push(req.params.id);
+    await db.pool.execute('UPDATE money_ledger SET ' + updates.join(',') + ' WHERE id=?', vals);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

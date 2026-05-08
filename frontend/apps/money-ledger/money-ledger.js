@@ -204,9 +204,13 @@ window.MoneyLedger = (function() {
     try {
       var entry = await API.req('POST','/money-ledger',{type:cat,direction:currentDir,person:person,amount:amt,entry_date:date,note:note,settled:0,entered_by:APP.user.name});
       entries.unshift(entry);
+      // Clear inputs without rebuilding whole UI (preserves Credit/Debit state)
       var ae=el('ml-amt-inp'); if(ae)ae.value='';
       var ne=el('ml-note-inp'); if(ne)ne.value='';
-      buildUI(); toast('Entry added');
+      // Update summary cards
+      updateSummaryCards();
+      renderList();
+      toast('Entry added');
     } catch(e){toast(e.message,true);}
   }
 
@@ -237,7 +241,7 @@ window.MoneyLedger = (function() {
       await API.req('PUT','/money-ledger/'+editingId,{type:cat,direction:dir,person:person,amount:amt,entry_date:date,note:note});
       var e=entries.find(function(x){return x.id===editingId;});
       if(e){e.type=cat;e.direction=dir;e.person=person;e.amount=amt;e.entry_date=date;e.note=note;}
-      closeModal('ml-edit-modal'); buildUI(); toast('Entry updated');
+      closeModal('ml-edit-modal'); updateSummaryCards(); renderList(); toast('Entry updated');
     } catch(e2){toast(e2.message,true);}
   }
 
@@ -246,7 +250,9 @@ window.MoneyLedger = (function() {
     try{
       await API.req('DELETE','/money-ledger/'+id);
       entries=entries.filter(function(x){return x.id!==id;});
-      buildUI(); toast('Deleted');
+      updateSummaryCards();
+      renderList();
+      toast('Deleted');
     }catch(e){toast(e.message,true);}
   }
 
@@ -312,6 +318,32 @@ window.MoneyLedger = (function() {
     var csv='\uFEFF'+[h].concat(data).map(function(r){return r.map(function(v){return '"'+v+'"';}).join(',');}).join('\n');
     var a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
     a.download='MoneyLedger_'+toDateStr()+'.csv'; a.click(); toast('Exported');
+  }
+
+  function updateSummaryCards() {
+    var names = allUsers.map(function(u){return u.name;});
+    var summary = {};
+    names.forEach(function(n){summary[n]={credit:0,debit:0};});
+    entries.forEach(function(e){
+      if(!summary[e.person])summary[e.person]={credit:0,debit:0};
+      var dir=getDir(e);
+      if(dir==='credit')summary[e.person].credit+=parseFloat(e.amount||0);
+      else              summary[e.person].debit +=parseFloat(e.amount||0);
+    });
+    // Update card values in DOM without rebuilding
+    document.querySelectorAll('[data-ml-card]').forEach(function(card) {
+      var n = card.getAttribute('data-ml-card');
+      var s = n==='all' ? null : (summary[n]||{credit:0,debit:0});
+      if(n==='all') {
+        var cv = card.querySelector('.cv'); if(cv) cv.textContent = entries.length + ' entries';
+      } else if(s) {
+        var net=s.credit-s.debit;
+        var cv=card.querySelector('.cv');
+        if(cv){cv.textContent='SAR '+fmt(net);cv.style.color=net>=0?'var(--green)':'var(--red)';}
+        var sub=card.querySelector('[data-sub]');
+        if(sub)sub.textContent='In: '+fmt(s.credit)+' | Out: '+fmt(s.debit);
+      }
+    });
   }
 
   return{render:render,setDir:setDir,setEditDir:setEditDir,setPerson:setPerson,setDirFilter:setDirFilter,addEntry:addEntry,editEntry:editEntry,saveEdit:saveEdit,deleteEntry:deleteEntry,renderList:renderList,exportCSV:exportCSV};
