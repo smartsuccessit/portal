@@ -94,10 +94,61 @@ crudPath('pl-entries', 'pl_entries',
   'year DESC, month DESC, id DESC'
 );
 
-crudPath('money-ledger', 'money_ledger',
-  ['type','direction','person','amount','entry_date','note','settled','entered_by'],
-  'entry_date DESC, id DESC'
-);
+// Money Ledger - explicit routes to handle optional direction column
+router.get('/money-ledger', requireAuth, async function(req, res) {
+  try { res.json(await db.query('SELECT * FROM money_ledger ORDER BY entry_date DESC, id DESC')); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+router.post('/money-ledger', requireAuth, async function(req, res) {
+  try {
+    var b = req.body;
+    // Check if direction column exists
+    var cols = ['type','person','amount','entry_date','note','settled','entered_by'];
+    var vals = [b.type||'', b.person||'', b.amount||0, b.entry_date||new Date().toISOString().slice(0,10), b.note||'', b.settled||0, req.user.name];
+    // Try with direction first, fall back without
+    try {
+      var r = await db.pool.execute(
+        'INSERT INTO money_ledger(type,direction,person,amount,entry_date,note,settled,entered_by) VALUES(?,?,?,?,?,?,?,?)',
+        [b.type||'', b.direction||'credit', b.person||'', b.amount||0, b.entry_date||new Date().toISOString().slice(0,10), b.note||'', b.settled||0, req.user.name]
+      );
+      res.json(await db.getOne('SELECT * FROM money_ledger WHERE id=?', [r[0].insertId]));
+    } catch(e2) {
+      // direction column missing - insert without it
+      if (e2.message && e2.message.includes('direction')) {
+        var r2 = await db.pool.execute(
+          'INSERT INTO money_ledger(type,person,amount,entry_date,note,settled,entered_by) VALUES(?,?,?,?,?,?,?)',
+          vals
+        );
+        res.json(await db.getOne('SELECT * FROM money_ledger WHERE id=?', [r2[0].insertId]));
+      } else { throw e2; }
+    }
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+router.put('/money-ledger/:id', requireAuth, async function(req, res) {
+  try {
+    var b = req.body;
+    var fields = ['type','person','amount','entry_date','note','settled'];
+    var vals = fields.filter(function(f){return b[f]!==undefined;});
+    // Try with direction
+    try {
+      var allFields = vals.concat(['direction']);
+      var allVals = allFields.map(function(f){return b[f]!==undefined?b[f]:(f==='direction'?'credit':null);});
+      allVals.push(req.params.id);
+      await db.pool.execute('UPDATE money_ledger SET '+allFields.map(function(f){return f+'=?';}).join(',')+'  WHERE id=?', allVals);
+    } catch(e2) {
+      if (e2.message && e2.message.includes('direction')) {
+        var safeVals = vals.map(function(f){return b[f];});
+        safeVals.push(req.params.id);
+        await db.pool.execute('UPDATE money_ledger SET '+vals.map(function(f){return f+'=?';}).join(',')+'  WHERE id=?', safeVals);
+      } else { throw e2; }
+    }
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+router.delete('/money-ledger/:id', requireAuth, async function(req, res) {
+  try { await db.pool.execute('DELETE FROM money_ledger WHERE id=?', [req.params.id]); res.json({ ok: true }); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 crudPath('reimbursements', 'reimbursements',
   ['paid_by','amount','category','description','paid_date','reference','entered_by',
