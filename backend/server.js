@@ -323,6 +323,29 @@ async function runSetup() {
     console.log('[Setup] ML categories seeded');
   }
 
+  // Fix old money_ledger entries - normalize type to pipe format
+  try {
+    var oldRows = await conn.execute(
+      "SELECT id, type, direction FROM money_ledger WHERE type NOT LIKE '%|%'"
+    );
+    var creditTypes = ['salary','bonus','profit','loan_rep','other_in','received',
+                       'Salary','Bonus','Profit Share','Loan Repaid','Other In'];
+    for (var row of oldRows[0]) {
+      var dir, typeName;
+      if (row.type && row.type.trim() !== '') {
+        dir = creditTypes.includes(row.type) ? 'credit' : 'debit';
+        typeName = row.type;
+      } else {
+        // Empty type - use direction column if set, else debit
+        dir = (row.direction && row.direction !== '') ? row.direction : 'debit';
+        typeName = dir === 'credit' ? 'Other In' : 'Other Out';
+      }
+      var newType = dir + '|' + typeName;
+      await conn.execute('UPDATE money_ledger SET type=? WHERE id=?', [newType, row.id]);
+    }
+    if (oldRows[0].length > 0) console.log('[Setup] Fixed ' + oldRows[0].length + ' old money_ledger entries');
+  } catch(e2) { console.log('[Setup] money_ledger fix:', e2.message); }
+
   // Grant new apps to ALL existing users who don't have them yet
   const newApps = ['pl-report','money-ledger','reimbursements','invoices'];
   const allUsers2 = await conn.execute('SELECT id FROM users');
