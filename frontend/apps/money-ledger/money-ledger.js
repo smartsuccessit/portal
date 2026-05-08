@@ -214,9 +214,11 @@ window.MoneyLedger = (function() {
     var catEl  = el('ml-cat-sel');
     var cat    = catEl ? catEl.value : '';
     // Debug: show what we're reading
-    // Show debug toast
-    toast('dir='+currentDir+' cat=['+cat+'] opts='+(catEl?catEl.options.length:0));
-    return; // TEMP: stop here so we can see values
+    // If category empty, repopulate and use first option
+    if (!cat && catEl) {
+      catEl.innerHTML = getCatOptions(currentDir);
+      cat = catEl.value;
+    }
     var amt    = parseFloat((el('ml-amt-inp')||{value:0}).value);
     var date   = ((el('ml-date-inp')||{value:toDateStr()}).value||toDateStr()).slice(0,10);
     var note   = (el('ml-note-inp')||{value:''}).value.trim();
