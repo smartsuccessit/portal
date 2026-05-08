@@ -27,14 +27,19 @@ window.MoneyLedger = (function() {
     try {
       var r = await Promise.all([API.req('GET','/money-ledger'), API.getUsers(), API.req('GET','/ml-categories')]);
       entries = r[0]||[]; allUsers = r[1]||[]; mlCats = r[2]||[];
-      // Normalize entries - fix date format and parse pipe-encoded type
+      var creditTypes = ['salary','bonus','profit','loan_rep','other_in','received',
+                         'Salary','Bonus','Profit Share','Loan Repaid','Other In'];
+      // Normalize ALL entries on load
       entries = entries.map(function(e) {
-        // Fix date display
-        if (e.entry_date) e.entry_date = e.entry_date.slice(0,10);
-        // Parse pipe-encoded direction if not already parsed by backend
-        if (!e.direction && e.type && e.type.includes('|')) {
-          e.direction = e.type.split('|')[0];
-          e.type      = e.type.split('|')[1];
+        if (e.entry_date) e.entry_date = String(e.entry_date).slice(0,10);
+        // Always parse pipe prefix - this is the canonical format
+        if (e.type && e.type.includes('|')) {
+          var parts = e.type.split('|');
+          e.direction = parts[0];
+          e.type = parts.slice(1).join('|');
+        } else if (!e.direction || e.direction === '') {
+          // No pipe and no direction - infer from type name
+          e.direction = creditTypes.includes((e.type||'').trim()) ? 'credit' : 'debit';
         }
         return e;
       });
