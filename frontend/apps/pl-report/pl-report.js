@@ -85,6 +85,26 @@ window.PLReport = (function() {
           '</div>' +
           '<div class="sw"><table class="ltbl"><thead><tr><th>Month</th><th>Type</th><th>Category</th><th>Description</th><th>Amount</th><th>Note</th><th></th></tr></thead><tbody id="pl-entries-tbody"></tbody></table>' +
           '<div class="empty" id="pl-empty" style="display:none">No entries yet.</div></div></div>' +
+      '<div class="overlay" id="pl-edit-modal"><div class="modal">' +
+        '<h3>Edit Entry</h3>' +
+        '<div class="mf">' +
+          '<div class="mrow">' +
+            '<div><label>Month</label><select id="pl-em-month">' + MONTHS.map(function(m,i){return '<option value="'+(i+1)+'">'+m+'</option>';}).join('') + '</select></div>' +
+            '<div><label>Year</label><select id="pl-em-year">' + [now.getFullYear()-1,now.getFullYear(),now.getFullYear()+1].map(function(y){return '<option value="'+y+'">'+y+'</option>';}).join('') + '</select></div>' +
+          '</div>' +
+          '<div class="mrow">' +
+            '<div><label>Type</label><select id="pl-em-type"><option value="income">Income</option><option value="expense">Expense</option></select></div>' +
+            '<div><label>Category</label><select id="pl-em-cat"></select></div>' +
+          '</div>' +
+          '<div><label>Description</label><input type="text" id="pl-em-desc"></div>' +
+          '<div><label>Amount (SAR)</label><input type="number" id="pl-em-amt" step="0.01" min="0"></div>' +
+          '<div><label>Note</label><input type="text" id="pl-em-note"></div>' +
+        '</div>' +
+        '<div class="mact">' +
+          '<button class="btn-c" onclick="closeModal(\'pl-edit-modal\')">Cancel</button>' +
+          '<button class="btn-s" onclick="PLReport.saveEdit()">Save Changes</button>' +
+        '</div>' +
+      '</div></div>' +
         '</div>' +
       '</div>';
 
@@ -192,7 +212,10 @@ window.PLReport = (function() {
         '<td style="font-weight:500">'+e.description+'</td>'+
         '<td class="' +(isInc?'ain':'aout')+ '">' +(isInc?'+':'-')+fmt(e.amount)+'</td>'+
         '<td style="font-size:11px;color:var(--muted)">' +(e.note||'')+'</td>'+
-        '<td><button class="del-btn" onclick="PLReport.deleteEntry('+e.id+')">&#10005;</button></td>'+
+        '<td style="display:flex;gap:4px">' +
+        '<button class="act-btn" onclick="PLReport.editEntry('+e.id+')" style="font-size:10px;padding:3px 8px">Edit</button>' +
+        '<button class="del-btn" onclick="PLReport.deleteEntry('+e.id+')">&#10005;</button>' +
+        '</td>'+
         '</tr>';
     }).join('');
   }
@@ -207,5 +230,48 @@ window.PLReport = (function() {
     a.download='PL_'+year+'.csv';a.click();toast('Exported');
   }
 
-  return{render:render,setType:setType,filterType:filterType,addEntry:addEntry,deleteEntry:deleteEntry,refresh:refresh,renderEntries:renderEntries,exportCSV:exportCSV};
+  var editingId = null;
+
+  function editEntry(id) {
+    var e = entries.find(function(x){return x.id===id;});
+    if (!e) return;
+    editingId = id;
+    var em = el('pl-em-month'); if(em) em.value = e.month;
+    var ey = el('pl-em-year');  if(ey) ey.value = e.year;
+    var et = el('pl-em-type');  if(et) { et.value = e.type; updateEditCats(e.type, e.category); }
+    var ed = el('pl-em-desc');  if(ed) ed.value = e.description;
+    var ea = el('pl-em-amt');   if(ea) ea.value = parseFloat(e.amount||0).toFixed(2);
+    var en2= el('pl-em-note');  if(en2) en2.value = e.note||'';
+    var et2= el('pl-em-type');
+    if(et2) et2.onchange = function(){ updateEditCats(this.value, ''); };
+    openModal('pl-edit-modal');
+  }
+
+  function updateEditCats(type, selected) {
+    var cat = el('pl-em-cat'); if(!cat) return;
+    cat.innerHTML = getCatOptions(type);
+    if(selected) cat.value = selected;
+  }
+
+  async function saveEdit() {
+    var month = parseInt((el('pl-em-month')||{value:1}).value);
+    var year  = parseInt((el('pl-em-year') ||{value:new Date().getFullYear()}).value);
+    var type  = (el('pl-em-type')||{value:'income'}).value;
+    var cat   = (el('pl-em-cat') ||{value:''}).value;
+    var desc  = (el('pl-em-desc')||{value:''}).value.trim();
+    var amt   = parseFloat((el('pl-em-amt')||{value:0}).value);
+    var note  = (el('pl-em-note')||{value:''}).value.trim();
+    if(!desc) return toast('Add a description', true);
+    if(!amt||amt<=0) return toast('Enter a valid amount', true);
+    try {
+      await API.req('PUT', '/pl-entries/'+editingId, {month:month,year:year,type:type,category:cat,description:desc,amount:amt,note:note});
+      var e = entries.find(function(x){return x.id===editingId;});
+      if(e){ e.month=month; e.year=year; e.type=type; e.category=cat; e.description=desc; e.amount=amt; e.note=note; }
+      closeModal('pl-edit-modal');
+      renderSummary(); renderEntries();
+      toast('Entry updated');
+    } catch(e2){ toast(e2.message, true); }
+  }
+
+  return{render:render,setType:setType,filterType:filterType,addEntry:addEntry,editEntry:editEntry,saveEdit:saveEdit,deleteEntry:deleteEntry,refresh:refresh,renderEntries:renderEntries,exportCSV:exportCSV};
 })();

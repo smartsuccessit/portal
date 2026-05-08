@@ -106,6 +106,23 @@ window.MoneyLedger = (function() {
     html += '<div id="ml-bal-bar" style="padding:10px 18px;border-top:1px solid var(--bord);display:flex;gap:16px;flex-wrap:wrap;font-size:12px"></div>';
     html += '</div></div>';
 
+    // Edit modal
+    html += '<div class="overlay" id="ml-edit-modal"><div class="modal">';
+    html += '<h3>Edit Entry</h3><div class="mf">';
+    html += '<div><label>Team Member</label><select id="ml-em-person">';
+    names.forEach(function(n){ html += '<option value="'+n+'">'+n+'</option>'; });
+    html += '</select></div>';
+    html += '<div><label>Transaction Type</label><select id="ml-em-type">';
+    TYPES.forEach(function(tp){ html += '<option value="'+tp.id+'">'+tp.label+'</option>'; });
+    html += '</select></div>';
+    html += '<div><label>Amount (SAR)</label><input type="number" id="ml-em-amt" step="0.01" min="0"></div>';
+    html += '<div><label>Date</label><input type="date" id="ml-em-date"></div>';
+    html += '<div><label>Note</label><input type="text" id="ml-em-note"></div>';
+    html += '</div><div class="mact">';
+    html += '<button class="btn-c" onclick="closeModal(\'ml-edit-modal\')">Cancel</button>';
+    html += '<button class="btn-s" onclick="MoneyLedger.saveEdit()">Save Changes</button>';
+    html += '</div></div></div>';
+
     wrap.innerHTML = html;
     renderList();
   }
@@ -191,7 +208,12 @@ window.MoneyLedger = (function() {
         '<td class="ain">'+(tp.credit?'SAR '+fmt(e.amount):'&mdash;')+'</td>'+
         '<td class="aout">'+(!tp.credit?'SAR '+fmt(e.amount):'&mdash;')+'</td>'+
         '<td style="font-size:11px;color:var(--muted)">'+(e.note||'')+'</td>'+
-        '<td>'+(canSeeAll()?'<button class="del-btn" onclick="MoneyLedger.deleteEntry('+e.id+')">&#10005;</button>':'')+'</td>'+
+        '<td>'+(canSeeAll()?
+          '<div style="display:flex;gap:4px">'+
+          '<button class="act-btn" onclick="MoneyLedger.editEntry('+e.id+')" style="font-size:10px;padding:3px 8px">Edit</button>'+
+          '<button class="del-btn" onclick="MoneyLedger.deleteEntry('+e.id+')">&#10005;</button>'+
+          '</div>':'')+
+        '</td>'+
         '</tr>';
     });
     tbody.innerHTML=rows;
@@ -226,5 +248,37 @@ window.MoneyLedger = (function() {
     a.download='MoneyLedger_'+toDateStr()+'.csv'; a.click(); toast('Exported');
   }
 
-  return{render:render,setPerson:setPerson,setTypeFilter:setTypeFilter,addEntry:addEntry,deleteEntry:deleteEntry,renderList:renderList,exportCSV:exportCSV};
+  var editingId = null;
+
+  function editEntry(id) {
+    var e = entries.find(function(x){return x.id===id;});
+    if (!e) return;
+    editingId = id;
+    var ep = el('ml-em-person'); if(ep) ep.value = e.person;
+    var et = el('ml-em-type');   if(et) et.value = e.type;
+    var ea = el('ml-em-amt');    if(ea) ea.value = parseFloat(e.amount||0).toFixed(2);
+    var ed = el('ml-em-date');   if(ed) ed.value = e.entry_date||'';
+    var en2= el('ml-em-note');   if(en2) en2.value = e.note||'';
+    openModal('ml-edit-modal');
+  }
+
+  async function saveEdit() {
+    var person = (el('ml-em-person')||{value:''}).value;
+    var type   = (el('ml-em-type')  ||{value:''}).value;
+    var amt    = parseFloat((el('ml-em-amt') ||{value:0}).value);
+    var date   = (el('ml-em-date')  ||{value:''}).value;
+    var note   = (el('ml-em-note')  ||{value:''}).value.trim();
+    if(!person) return toast('Select a team member', true);
+    if(!amt||amt<=0) return toast('Enter a valid amount', true);
+    try {
+      await API.req('PUT', '/money-ledger/'+editingId, {type:type,person:person,amount:amt,entry_date:date,note:note});
+      var e = entries.find(function(x){return x.id===editingId;});
+      if(e){ e.type=type; e.person=person; e.amount=amt; e.entry_date=date; e.note=note; }
+      closeModal('ml-edit-modal');
+      renderList();
+      toast('Entry updated');
+    } catch(e2){ toast(e2.message, true); }
+  }
+
+  return{render:render,setPerson:setPerson,setTypeFilter:setTypeFilter,addEntry:addEntry,editEntry:editEntry,saveEdit:saveEdit,deleteEntry:deleteEntry,renderList:renderList,exportCSV:exportCSV};
 })();

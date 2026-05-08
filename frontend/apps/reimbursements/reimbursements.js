@@ -86,6 +86,36 @@ window.Reimbursements = (() => {
       </div>
     </div>
 
+    <!-- Edit Modal -->
+    <div class="overlay" id="rb-edit-modal">
+      <div class="modal">
+        <h3>Edit Claim</h3>
+        <div class="mf">
+          <div><label>Paid By</label>
+            <select id="rb-em-paidby" style="padding:10px 12px;border:1px solid var(--bord);border-radius:6px;background:var(--surf2);color:var(--text);font-size:14px;width:100%">
+              ${(allUsers||[]).map(u=>`<option value="${u.name}">${u.name}</option>`).join('')}
+            </select>
+          </div>
+          <div><label>Amount (SAR)</label><input type="number" id="rb-em-amt" step="0.01" min="0"></div>
+          <div><label>Category</label>
+            <select id="rb-em-cat">
+              ${(window._rbCats||[]).length
+                ? (window._rbCats||[]).map(c=>`<option value="${c.name_en}">${c.name_en}</option>`).join('')
+                : '<option>Office Supplies</option><option>Transport</option><option>Meals</option><option>Equipment</option><option>Other</option>'
+              }
+            </select>
+          </div>
+          <div><label>Description</label><input type="text" id="rb-em-desc"></div>
+          <div><label>Date Paid</label><input type="date" id="rb-em-date"></div>
+          <div><label>Reference</label><input type="text" id="rb-em-ref"></div>
+        </div>
+        <div class="mact">
+          <button class="btn-c" onclick="closeModal('rb-edit-modal')">Cancel</button>
+          <button class="btn-s" onclick="Reimbursements.saveEdit()">Save Changes</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Repay Modal -->
     <div class="overlay" id="rb-repay-modal"><div class="modal">
       <h3>Mark as Repaid</h3>
@@ -220,9 +250,46 @@ window.Reimbursements = (() => {
             : `<button onclick="Reimbursements.requestApproval(${e.id})" style="padding:3px 10px;border:1px solid var(--teal);border-radius:4px;background:transparent;color:var(--teal);font-size:10px;cursor:pointer">Request</button>`
       }</td>
       <td style="font-size:11px;color:var(--muted)">${e.repaid?`${e.repaid_method||''} \u00B7 ${e.repaid_date||''} \u00B7 SAR ${fmt(e.repaid_amount||0)}`:'—'}</td>
-      <td><button class="del-btn" onclick="Reimbursements.deleteEntry(${e.id})">&#10005;</button></td>
+      <td style="display:flex;gap:4px">
+        <button class="act-btn" onclick="Reimbursements.editEntry(${e.id})" style="font-size:10px;padding:3px 8px">Edit</button>
+        <button class="del-btn" onclick="Reimbursements.deleteEntry(${e.id})">&#10005;</button>
+      </td>
     </tr>`).join('');
   }
 
-  return{render,filter,addEntry,requestApproval,openRepay,confirmRepay,deleteEntry,renderList};
+  var editingId = null;
+
+  function editEntry(id) {
+    var e = entries.find(x => x.id===id); if (!e) return;
+    editingId = id;
+    var ep = el('rb-em-paidby'); if(ep) ep.value = e.paid_by||'';
+    var ea = el('rb-em-amt');    if(ea) ea.value = parseFloat(e.amount||0).toFixed(2);
+    var ec = el('rb-em-cat');    if(ec) ec.value = e.category||'';
+    var ed = el('rb-em-desc');   if(ed) ed.value = e.description||'';
+    var edt= el('rb-em-date');   if(edt)edt.value= e.paid_date||'';
+    var er = el('rb-em-ref');    if(er) er.value = e.reference||'';
+    openModal('rb-edit-modal');
+  }
+
+  async function saveEdit() {
+    var paidBy = (el('rb-em-paidby')||{value:''}).value;
+    var amt    = parseFloat((el('rb-em-amt')||{value:0}).value);
+    var cat    = (el('rb-em-cat') ||{value:''}).value;
+    var desc   = (el('rb-em-desc')||{value:''}).value.trim();
+    var date   = (el('rb-em-date')||{value:''}).value;
+    var ref    = (el('rb-em-ref') ||{value:''}).value.trim();
+    if(!paidBy) return toast('Select who paid', true);
+    if(!amt||amt<=0) return toast('Enter a valid amount', true);
+    if(!desc) return toast('Add a description', true);
+    try {
+      await API.req('PUT', `/reimbursements/${editingId}`, {paid_by:paidBy,amount:amt,category:cat,description:desc,paid_date:date,reference:ref});
+      var e = entries.find(x=>x.id===editingId);
+      if(e){ e.paid_by=paidBy; e.amount=amt; e.category=cat; e.description=desc; e.paid_date=date; e.reference=ref; }
+      closeModal('rb-edit-modal');
+      buildUI();
+      toast('Claim updated');
+    } catch(e2){ toast(e2.message, true); }
+  }
+
+  return{render,filter,addEntry,editEntry,saveEdit,requestApproval,openRepay,confirmRepay,deleteEntry,renderList};
 })();
