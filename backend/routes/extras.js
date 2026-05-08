@@ -95,6 +95,13 @@ crudPath('pl-entries', 'pl_entries',
 );
 
 // Money Ledger — stores direction as prefix in type field: "credit|Salary" or "debit|Loan Given"
+router.get('/money-ledger/debug-raw', requireAuth, async function(req, res) {
+  try {
+    var rows = await db.query('SELECT id, type, direction, person, amount FROM money_ledger ORDER BY id DESC LIMIT 10');
+    res.json(rows);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 router.get('/money-ledger', requireAuth, async function(req, res) {
   try {
     var rows = await db.query('SELECT * FROM money_ledger ORDER BY entry_date DESC, id DESC');
