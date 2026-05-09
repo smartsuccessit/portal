@@ -484,5 +484,5 @@ window.MoneyLedger = (function() {
     w.document.close();
   }
 
-  return{render:render,setDir:setDir,toggleSort:toggleSort,setEditDir:setEditDir,setPerson:setPerson,setDirFilter:setDirFilter,addEntry:addEntry,editEntry:editEntry,saveEdit:saveEdit,deleteEntry:deleteEntry,renderList:renderList,exportCSV:exportCSV};
+  return{render:render,setDir:setDir,toggleSort:toggleSort,setEditDir:setEditDir,setPerson:setPerson,setDirFilter:setDirFilter,addEntry:addEntry,editEntry:editEntry,saveEdit:saveEdit,deleteEntry:deleteEntry,renderList:renderList,exportCSV:exportCSV,exportPDF:exportPDF};
 })();
