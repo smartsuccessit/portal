@@ -126,9 +126,9 @@ window.MoneyLedger = (function() {
     html += '<button class="fbtn" onclick="MoneyLedger.setDirFilter(\'credit\',this)">&#8593; Credits</button>';
     html += '<button class="fbtn" onclick="MoneyLedger.setDirFilter(\'debit\',this)">&#8595; Debits</button>';
     html += '<input class="srch" type="text" id="ml-srch-inp" placeholder="Search..." oninput="MoneyLedger.renderList()">';
-    html += '<button id="ml-sort-btn" onclick="MoneyLedger.toggleSort()" style="padding:5px 10px;border:1px solid var(--bord);border-radius:4px;background:var(--surf2);color:var(--text);font-size:12px;cursor:pointer;white-space:nowrap">&#8595; Newest</button>';
+
     html += '</div>';
-    html += '<div class="sw"><table class="ltbl"><thead><tr><th>Date</th><th>Member</th><th>Category</th><th>Credit</th><th>Debit</th><th>Note</th><th></th></tr></thead><tbody id="ml-tbody"></tbody></table>';
+    html += '<div class="sw"><table class="ltbl"><thead><tr><th style="cursor:pointer;user-select:none" onclick="MoneyLedger.toggleSort()">Date <span id="ml-sort-icon">&#8595;</span></th><th>Member</th><th>Category</th><th>Credit</th><th>Debit</th><th>Note</th><th></th></tr></thead><tbody id="ml-tbody"></tbody></table>';
     html += '<div class="empty" id="ml-empty" style="display:none">No entries.</div></div>';
     html += '<div id="ml-bal-bar" style="padding:10px 18px;border-top:1px solid var(--bord);display:flex;gap:16px;flex-wrap:wrap;font-size:12px"></div>';
     html += '</div></div>';
@@ -196,8 +196,8 @@ window.MoneyLedger = (function() {
 
   function toggleSort() {
     sortDir = sortDir === 'desc' ? 'asc' : 'desc';
-    var btn = el('ml-sort-btn');
-    if(btn) btn.innerHTML = sortDir === 'desc' ? '&#8595; Newest' : '&#8593; Oldest';
+    var icon = el('ml-sort-icon');
+    if(icon) icon.innerHTML = sortDir === 'desc' ? '&#8595;' : '&#8593;';
     renderList();
   }
 
@@ -294,6 +294,15 @@ window.MoneyLedger = (function() {
     }catch(e){toast(e.message,true);}
   }
 
+  function fmtDate(d) {
+    if (!d) return '';
+    var dt = new Date(d + 'T00:00:00');
+    if (isNaN(dt)) return d;
+    var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return days[dt.getDay()] + ' ' + dt.getDate() + ' ' + months[dt.getMonth()] + ' ' + dt.getFullYear();
+  }
+
   function renderList() {
     var q=((el('ml-srch-inp')||{value:''}).value||'').toLowerCase();
     var list=entries.slice();
@@ -317,7 +326,7 @@ window.MoneyLedger = (function() {
       var dir=getDir(e), isCredit=dir==='credit';
       var color=isCredit?'var(--green)':'var(--red)';
       rows+='<tr>'+
-        '<td style="font-size:12px;color:var(--muted);white-space:nowrap">'+((e.entry_date||'').slice(0,10))+'</td>'+
+        '<td style="font-size:12px;color:var(--muted);white-space:nowrap">'+fmtDate(e.entry_date)+'</td>'+
         '<td style="font-weight:600">'+e.person+'</td>'+
         '<td><span style="font-size:10px;padding:2px 8px;border-radius:3px;background:rgba(0,0,0,.06);color:'+color+';white-space:nowrap">'+getTypeName(e)+'</span></td>'+
         '<td class="ain">'+(isCredit?'SAR '+fmt(e.amount):'&mdash;')+'</td>'+
