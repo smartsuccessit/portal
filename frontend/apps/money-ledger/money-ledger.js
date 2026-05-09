@@ -2,7 +2,7 @@
 window.MoneyLedger = (function() {
   var entries = [], allUsers = [], mlCats = [], wrap;
   var MANAGERS = ['Shahzaib','Riyad'];
-  var filterPerson = 'all', filterDir = 'all';
+  var filterPerson = 'all', filterDir = 'all', sortDir = 'desc';
   var currentDir = 'credit';
   var editingId = null;
 
@@ -126,6 +126,7 @@ window.MoneyLedger = (function() {
     html += '<button class="fbtn" onclick="MoneyLedger.setDirFilter(\'credit\',this)">&#8593; Credits</button>';
     html += '<button class="fbtn" onclick="MoneyLedger.setDirFilter(\'debit\',this)">&#8595; Debits</button>';
     html += '<input class="srch" type="text" id="ml-srch-inp" placeholder="Search..." oninput="MoneyLedger.renderList()">';
+    html += '<button id="ml-sort-btn" onclick="MoneyLedger.toggleSort()" style="padding:5px 10px;border:1px solid var(--bord);border-radius:4px;background:var(--surf2);color:var(--text);font-size:12px;cursor:pointer;white-space:nowrap">&#8595; Newest</button>';
     html += '</div>';
     html += '<div class="sw"><table class="ltbl"><thead><tr><th>Date</th><th>Member</th><th>Category</th><th>Credit</th><th>Debit</th><th>Note</th><th></th></tr></thead><tbody id="ml-tbody"></tbody></table>';
     html += '<div class="empty" id="ml-empty" style="display:none">No entries.</div></div>';
@@ -190,6 +191,13 @@ window.MoneyLedger = (function() {
       var m = c.getAttribute('onclick').match(/'([^']+)'/);
       if(m) c.style.borderColor = m[1]===name ? 'var(--teal)' : 'var(--bord)';
     });
+    renderList();
+  }
+
+  function toggleSort() {
+    sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+    var btn = el('ml-sort-btn');
+    if(btn) btn.innerHTML = sortDir === 'desc' ? '&#8595; Newest' : '&#8593; Oldest';
     renderList();
   }
 
@@ -294,7 +302,10 @@ window.MoneyLedger = (function() {
     if(filterDir==='credit') list=list.filter(function(e){return getDir(e)==='credit';});
     if(filterDir==='debit')  list=list.filter(function(e){return getDir(e)==='debit';});
     if(q) list=list.filter(function(e){return e.person.toLowerCase().includes(q)||(e.note||'').toLowerCase().includes(q)||(e.type||'').toLowerCase().includes(q);});
-    list.sort(function(a,b){return (b.entry_date||'').localeCompare(a.entry_date||'');});
+    list.sort(function(a,b){
+      var cmp = (a.entry_date||'').localeCompare(b.entry_date||'');
+      return sortDir === 'desc' ? -cmp : cmp;
+    });
 
     var tbody=el('ml-tbody'), emp=el('ml-empty');
     if(!tbody)return;
@@ -376,5 +387,5 @@ window.MoneyLedger = (function() {
     });
   }
 
-  return{render:render,setDir:setDir,setEditDir:setEditDir,setPerson:setPerson,setDirFilter:setDirFilter,addEntry:addEntry,editEntry:editEntry,saveEdit:saveEdit,deleteEntry:deleteEntry,renderList:renderList,exportCSV:exportCSV};
+  return{render:render,setDir:setDir,toggleSort:toggleSort,setEditDir:setEditDir,setPerson:setPerson,setDirFilter:setDirFilter,addEntry:addEntry,editEntry:editEntry,saveEdit:saveEdit,deleteEntry:deleteEntry,renderList:renderList,exportCSV:exportCSV};
 })();
