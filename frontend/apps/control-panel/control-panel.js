@@ -4,7 +4,7 @@
  */
 window.ControlPanel = (() => {
   let users = [], settings = {}, cats = [], plCats = [], rbCats = [], mlCats = [];
-  const ALL_APPS = ['petty-cash','daily-report','tasks','roles','profile','pl-report','money-ledger','reimbursements','invoices'];
+  const ALL_APPS = ['petty-cash','daily-report','tasks','roles','profile','pl-report','money-ledger','reimbursements','invoices','quotations'];
   let rmUserId = null, pinUserId = null;
 
   async function render(wrap) {
@@ -32,6 +32,7 @@ window.ControlPanel = (() => {
       <div class="cps" style="grid-column:span 2"><div class="cph"><span>&#128176;</span><h3>${t('cpCats')} — Petty Cash</h3></div><div class="cpb" id="cp-cats"></div></div>
       <div class="cps" style="grid-column:span 2"><div class="cph"><span>&#128200;</span><h3>P&amp;L Report Categories</h3></div><div class="cpb" id="cp-pl-cats"></div></div>
       <div class="cps" style="grid-column:span 2"><div class="cph"><span>&#128179;</span><h3>Reimbursement Categories</h3></div><div class="cpb" id="cp-rb-cats"></div></div>
+      <div class="cps" style="grid-column:span 2"><div class="cph"><span>&#128206;</span><h3>Quotation Settings</h3></div><div class="cpb" id="cp-qt-settings"></div></div>
       <div class="cps" style="grid-column:span 2"><div class="cph"><span>&#128176;</span><h3>Money Ledger Categories</h3></div><div class="cpb" id="cp-ml-cats"></div></div>
     </div>
     <div class="overlay" id="cp-pin-modal"><div class="modal"><h3>Reset PIN</h3><div class="mf">
@@ -43,7 +44,7 @@ window.ControlPanel = (() => {
       <p id="cp-rm-msg" style="color:var(--muted);font-size:14px;margin-bottom:4px"></p>
       <div class="mact"><button class="btn-c" onclick="closeModal('cp-rm-modal')">Cancel</button><button class="btn-d" onclick="ControlPanel.confirmRemove()">Remove</button></div>
     </div></div>`;
-    renderUsers(); renderAccess(); renderPins(); renderPerms(); renderCats(); renderPLCats(); renderRBCats(); renderMLCats();
+    renderUsers(); renderAccess(); renderPins(); renderPerms(); renderCats(); renderPLCats(); renderRBCats(); renderMLCats(); renderQTSettings();
   }
 
   function renderUsers() {
@@ -302,5 +303,50 @@ window.ControlPanel = (() => {
     try{await API.req('DELETE','/ml-categories/'+id);mlCats=mlCats.filter(function(c){return c.id!==id;});renderMLCats();toast('Category removed');}catch(e){toast(e.message,true);}
   }
 
-  return {render,addUser,askRemove,confirmRemove,toggleAccess,openPin,savePin,setApprover,setDeleter,updateCat,addCat,deleteCat,updatePLCat,addPLCat,deletePLCat,renderRBCats,updateRBCat,addRBCat,deleteRBCat,renderMLCats,updateMLCat,addMLCat,deleteMLCat};
+  var qtSettingsData = {};
+
+  async function renderQTSettings() {
+    var el2 = el('cp-qt-settings'); if(!el2) return;
+    try { qtSettingsData = await API.req('GET','/quotations/settings'); } catch(e) { qtSettingsData = {}; }
+    var s = qtSettingsData;
+    var field = function(id, label, val, ph) {
+      return '<div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">'+label+'</label>' +
+        '<input id="qt-s-'+id+'" value="'+(val||'').replace(/"/g,'&quot;')+'" placeholder="'+(ph||'')+'" style="width:100%;padding:8px 10px;border:1px solid var(--bord);border-radius:6px;background:var(--surf2);color:var(--text);font-size:13px"></div>';
+    };
+    el2.innerHTML =
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">' +
+        field('company_name','Company Name',s.qt_company_name,'Smart Success IT') +
+        field('vat_number','VAT Number',s.qt_vat_number,'300...') +
+        field('phone','Phone',s.qt_phone,'+966...') +
+        field('email','Email',s.qt_email,'info@...') +
+        field('website','Website',s.qt_website,'www...') +
+        field('currency','Currency',s.qt_currency,'SAR') +
+        field('vat_pct','Default VAT %',s.qt_vat_pct,'15') +
+        field('prefix','Quote Number Prefix',s.qt_prefix,'QTSS') +
+      '</div>' +
+      '<div style="margin-bottom:12px"><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">Company Address</label>' +
+        '<textarea id="qt-s-address" style="width:100%;padding:8px 10px;border:1px solid var(--bord);border-radius:6px;background:var(--surf2);color:var(--text);font-size:13px;min-height:55px" placeholder="Full address...">'+(s.qt_address||'')+'</textarea></div>' +
+      '<div style="margin-bottom:12px"><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">Logo URL</label>' +
+        '<input id="qt-s-logo_url" value="'+(s.qt_logo_url||'')+'" placeholder="https://..." style="width:100%;padding:8px 10px;border:1px solid var(--bord);border-radius:6px;background:var(--surf2);color:var(--text);font-size:13px"></div>' +
+      '<div style="margin-bottom:12px"><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">Default Footer / Terms</label>' +
+        '<textarea id="qt-s-footer" style="width:100%;padding:8px 10px;border:1px solid var(--bord);border-radius:6px;background:var(--surf2);color:var(--text);font-size:13px;min-height:60px" placeholder="Thank you for your business...">'+(s.qt_footer||'')+'</textarea></div>' +
+      '<button onclick="ControlPanel.saveQTSettings()" style="padding:10px 24px;border:none;border-radius:8px;background:var(--teal);color:#fff;font-size:14px;font-weight:700;cursor:pointer">Save Quotation Settings</button>';
+  }
+
+  async function saveQTSettings() {
+    var get = function(id){ var e2=el('qt-s-'+id); return e2?e2.value:''; };
+    var data = {
+      qt_company_name: get('company_name'), qt_vat_number: get('vat_number'),
+      qt_phone:        get('phone'),         qt_email:      get('email'),
+      qt_website:      get('website'),       qt_currency:   get('currency'),
+      qt_vat_pct:      get('vat_pct'),       qt_prefix:     get('prefix'),
+      qt_address:      (el('qt-s-address')||{value:''}).value,
+      qt_logo_url:     get('logo_url'),
+      qt_footer:       (el('qt-s-footer')||{value:''}).value,
+    };
+    try { await API.req('POST','/quotations/settings',data); toast('Quotation settings saved!'); }
+    catch(e){toast(e.message,true);}
+  }
+
+  return {render,addUser,askRemove,confirmRemove,toggleAccess,openPin,savePin,setApprover,setDeleter,updateCat,addCat,deleteCat,updatePLCat,addPLCat,deletePLCat,renderRBCats,updateRBCat,addRBCat,deleteRBCat,renderMLCats,updateMLCat,addMLCat,deleteMLCat,renderQTSettings,saveQTSettings};
 })();

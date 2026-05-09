@@ -80,6 +80,7 @@ app.delete('/api/money-ledger/:id', mlAuth, async (req, res) => {
   catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.use('/api/quotations',   require('./routes/quotations'));
 app.use('/api',              require('./routes/extras'));
 app.get('/api/health',       (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
@@ -303,7 +304,7 @@ async function runSetup() {
     { name:'Hussam',   name_ar:'\u062d\u0633\u0627\u0645',         ini:'HU', color:'#7a3a1a', role:'Field Technician',      pin:'4567', admin:0, approver:0 },
     { name:'Shahdat',  name_ar:'\u0634\u0647\u062f\u0627\u062a',   ini:'SD', color:'#5a2a7a', role:'Sales Representative',  pin:'5678', admin:0, approver:0 },
   ];
-  const allApps = ['petty-cash','daily-report','tasks','roles','profile','pl-report','money-ledger','reimbursements','invoices'];
+  const allApps = ['petty-cash','daily-report','tasks','roles','profile','pl-report','money-ledger','reimbursements','invoices','quotations'];
   for (const u of defaultUsers) {
     const [ex] = await conn.execute('SELECT id FROM users WHERE name=?', [u.name]);
     if (ex.length) { console.log('[Setup] Exists:', u.name); continue; }
@@ -406,7 +407,7 @@ async function runSetup() {
   } catch(e2) { console.log('[Setup] money_ledger fix:', e2.message); }
 
   // Grant new apps to ALL existing users who don't have them yet
-  const newApps = ['pl-report','money-ledger','reimbursements','invoices'];
+  const newApps = ['pl-report','money-ledger','reimbursements','invoices','quotations'];
   const allUsers2 = await conn.execute('SELECT id FROM users');
   for (const u of allUsers2[0]) {
     for (const app of newApps) {
@@ -414,6 +415,71 @@ async function runSetup() {
     }
   }
   console.log('[Setup] New app access granted to all existing users');
+
+  // Quotation tables
+  try {
+    await conn.execute(`CREATE TABLE IF NOT EXISTS qt_settings (
+      \`key\` VARCHAR(100) PRIMARY KEY,
+      \`value\` TEXT NOT NULL DEFAULT ''
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+    await conn.execute(`CREATE TABLE IF NOT EXISTS qt_customers (
+      id           INT AUTO_INCREMENT PRIMARY KEY,
+      company_name VARCHAR(300) NOT NULL,
+      contact_name VARCHAR(200) NOT NULL DEFAULT '',
+      email        VARCHAR(200) NOT NULL DEFAULT '',
+      phone        VARCHAR(50)  NOT NULL DEFAULT '',
+      address      TEXT,
+      vat_number   VARCHAR(100) NOT NULL DEFAULT '',
+      notes        TEXT,
+      created_by   VARCHAR(100) NOT NULL,
+      created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+    await conn.execute(`CREATE TABLE IF NOT EXISTS quotations (
+      id            INT AUTO_INCREMENT PRIMARY KEY,
+      quote_number  VARCHAR(50) NOT NULL UNIQUE,
+      quote_date    DATE NOT NULL,
+      expiry_date   DATE NULL,
+      status        ENUM('Draft','Sent','Approved','Rejected','Expired') NOT NULL DEFAULT 'Draft',
+      customer_id   INT NULL,
+      customer_snap TEXT NOT NULL DEFAULT '{}',
+      from_snap     TEXT NOT NULL DEFAULT '{}',
+      notes         TEXT,
+      footer_text   TEXT,
+      vat_pct       DECIMAL(5,2) NOT NULL DEFAULT 15.00,
+      subtotal      DECIMAL(12,2) NOT NULL DEFAULT 0,
+      vat_amount    DECIMAL(12,2) NOT NULL DEFAULT 0,
+      grand_total   DECIMAL(12,2) NOT NULL DEFAULT 0,
+      currency      VARCHAR(10) NOT NULL DEFAULT 'SAR',
+      created_by    VARCHAR(100) NOT NULL,
+      created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+    await conn.execute(`CREATE TABLE IF NOT EXISTS quotation_items (
+      id           INT AUTO_INCREMENT PRIMARY KEY,
+      quotation_id INT NOT NULL,
+      sort_order   INT NOT NULL DEFAULT 0,
+      description  TEXT NOT NULL,
+      quantity     DECIMAL(10,3) NOT NULL DEFAULT 1,
+      unit_price   DECIMAL(12,2) NOT NULL DEFAULT 0,
+      line_total   DECIMAL(12,2) NOT NULL DEFAULT 0,
+      FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+    const qtDefaults = [
+      ['qt_company_name','Smart Success IT'],['qt_address','Riyadh, Saudi Arabia'],
+      ['qt_phone',''],['qt_email',''],['qt_website',''],['qt_vat_number',''],
+      ['qt_logo_url',''],['qt_currency','SAR'],['qt_vat_pct','15'],['qt_prefix','QTSS'],
+      ['qt_footer','Thank you for your business. This quotation is valid for 30 days.'],['qt_terms',''],
+    ];
+    for (const [k,v] of qtDefaults) {
+      await conn.execute('INSERT IGNORE INTO qt_settings(`key`,`value`) VALUES(?,?)',[k,v]);
+    }
+    console.log('[Setup] Quotation tables ready');
+  } catch(e2) { console.log('[Setup] Quotation tables error:', e2.message); }
 
   await conn.end();
   console.log('[Setup] Done!');
