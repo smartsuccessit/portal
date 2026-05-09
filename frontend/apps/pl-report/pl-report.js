@@ -73,7 +73,7 @@ window.PLReport = (function() {
           '<button class="sub-btn" onclick="PLReport.addEntry()">+ Add Entry</button>' +
         '</div></div>' +
         '<div style="display:flex;flex-direction:column;gap:16px">' +
-          '<div class="panel"><div class="ph dark">&#128202; Monthly Breakdown <button onclick="PLReport.exportCSV()" class="exp-btn" style="color:#fff;border-color:rgba(255,255,255,.3)">CSV</button></div>' +
+          '<div class="panel"><div class="ph dark" style="display:flex;justify-content:space-between;align-items:center"><span>&#128202; Monthly Breakdown</span><div style="display:flex;gap:6px"><button onclick="PLReport.exportCSV()" class="exp-btn" style="color:#fff;border-color:rgba(255,255,255,.3)">CSV</button><button onclick="PLReport.exportPDF()" class="exp-btn" style="color:#fff;border-color:rgba(255,255,255,.3)">&#128196; PDF</button></div></div>' +
           '<div class="sw"><table class="ltbl"><thead><tr><th>Month</th><th>Income</th><th>Expenses</th><th>Net Profit</th><th>Margin</th></tr></thead><tbody id="pl-tbody"></tbody></table></div></div>' +
           '<div class="panel"><div class="ph dark">Entries' +
             '<div style="display:flex;gap:6px">' +
@@ -271,6 +271,88 @@ window.PLReport = (function() {
       renderSummary(); renderEntries();
       toast('Entry updated');
     } catch(e2){ toast(e2.message, true); }
+  }
+
+  function exportPDF() {
+    var year   = getYear();
+    var fmth   = parseInt((el('pl-filter-month')||{value:''}).value||0);
+    var yearEntries = entries.filter(function(e){return parseInt(e.year)===year;});
+    var list = yearEntries.slice();
+    if (typeFilter!=='all') list = list.filter(function(e){return e.type===typeFilter;});
+    if (fmth) list = list.filter(function(e){return parseInt(e.month)===fmth;});
+    if (!list.length) return toast('No data to export', true);
+
+    var now = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    var filterLabel = typeFilter==='all' ? 'All Entries' : typeFilter==='income' ? 'Income Only' : 'Expenses Only';
+    var monthLabel  = fmth ? MONTHS[fmth-1] + ' ' + year : 'Full Year ' + year;
+
+    // Summary totals
+    var ti = list.filter(function(e){return e.type==='income'; }).reduce(function(s,e){return s+parseFloat(e.amount||0);},0);
+    var tx = list.filter(function(e){return e.type==='expense';}).reduce(function(s,e){return s+parseFloat(e.amount||0);},0);
+    var net = ti - tx;
+    var margin = ti > 0 ? (net/ti*100).toFixed(1) : '0.0';
+
+    // Monthly breakdown rows
+    var monthRows = MONTHS.map(function(m,i){
+      var mi = i+1;
+      var me = yearEntries.filter(function(e){return parseInt(e.month)===mi;});
+      var inc = me.filter(function(e){return e.type==='income'; }).reduce(function(s,e){return s+parseFloat(e.amount||0);},0);
+      var exp = me.filter(function(e){return e.type==='expense';}).reduce(function(s,e){return s+parseFloat(e.amount||0);},0);
+      var n = inc - exp;
+      if (inc===0 && exp===0) return '';
+      return '<tr style="background:'+(i%2===0?'#f9fafb':'#fff')+'">' +
+        '<td style="font-weight:600">'+m+' '+year+'</td>' +
+        '<td style="color:#16a34a;text-align:right">SAR '+fmt(inc)+'</td>' +
+        '<td style="color:#dc2626;text-align:right">SAR '+fmt(exp)+'</td>' +
+        '<td style="font-weight:700;color:'+(n>=0?'#16a34a':'#dc2626')+';text-align:right">'+(n>=0?'+':'')+'SAR '+fmt(n)+'</td>' +
+        '<td style="color:#6b7280;text-align:right">'+(inc>0?(n/inc*100).toFixed(1)+'%':'—')+'</td>' +
+        '</tr>';
+    }).join('');
+
+    // Entry rows
+    var entryRows = list.map(function(e,i){
+      var isInc = e.type==='income';
+      return '<tr style="background:'+(i%2===0?'#f9fafb':'#fff')+'">' +
+        '<td>'+MONTHS[parseInt(e.month)-1]+' '+e.year+'</td>' +
+        '<td><span style="padding:2px 8px;border-radius:3px;font-size:11px;background:'+(isInc?'rgba(22,163,74,.1)':'rgba(220,38,38,.1)')+';color:'+(isInc?'#16a34a':'#dc2626')+'">'+(isInc?'Income':'Expense')+'</span></td>' +
+        '<td style="color:#6b7280;font-size:12px">'+e.category+'</td>' +
+        '<td style="font-weight:500">'+e.description+'</td>' +
+        '<td style="color:'+(isInc?'#16a34a':'#dc2626')+';text-align:right;font-weight:600">'+(isInc?'+':'-')+'SAR '+fmt(e.amount)+'</td>' +
+        '<td style="color:#6b7280;font-size:12px">'+(e.note||'')+'</td>' +
+        '</tr>';
+    }).join('');
+
+    var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>P&L Report '+year+'</title>' +
+    '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:30px}' +
+    'h1{font-size:22px;color:#1e2d4a;margin-bottom:4px}.sub{color:#6b7280;font-size:13px;margin-bottom:24px}' +
+    '.meta{display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap}.meta-item{background:#f3f4f6;border-radius:8px;padding:10px 16px;min-width:130px}' +
+    '.meta-item .label{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px}.meta-item .value{font-size:18px;font-weight:700;margin-top:2px}' +
+    'h2{font-size:14px;font-weight:700;color:#1e2d4a;margin:20px 0 8px;border-bottom:2px solid #e5e7eb;padding-bottom:4px}' +
+    'table{width:100%;border-collapse:collapse;margin-bottom:16px}th{background:#1e2d4a;color:#fff;padding:8px 10px;text-align:left;font-size:12px}' +
+    'td{padding:7px 10px;border-bottom:1px solid #f3f4f6;font-size:12px}' +
+    '.footer{margin-top:30px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;display:flex;justify-content:space-between}' +
+    '@media print{button{display:none}}</style></head><body>' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">' +
+    '<div><h1>&#128200; Profit &amp; Loss Report</h1>' +
+    '<div class="sub">'+monthLabel+' &nbsp;|&nbsp; '+filterLabel+'</div></div>' +
+    '<div style="text-align:right;font-size:12px;color:#6b7280">Generated: '+now+'<br>Smart Success Portal</div></div>' +
+    '<div class="meta">' +
+    '<div class="meta-item"><div class="label">Total Income</div><div class="value" style="color:#16a34a">SAR '+fmt(ti)+'</div></div>' +
+    '<div class="meta-item"><div class="label">Total Expenses</div><div class="value" style="color:#dc2626">SAR '+fmt(tx)+'</div></div>' +
+    '<div class="meta-item"><div class="label">Net Profit</div><div class="value" style="color:'+(net>=0?'#16a34a':'#dc2626')+'">'+(net>=0?'+':'')+'SAR '+fmt(net)+'</div></div>' +
+    '<div class="meta-item"><div class="label">Margin</div><div class="value" style="color:#2abfbf">'+margin+'%</div></div>' +
+    '<div class="meta-item"><div class="label">Entries</div><div class="value" style="color:#1e2d4a">'+list.length+'</div></div>' +
+    '</div>' +
+    (!fmth ? '<h2>Monthly Breakdown</h2><table><thead><tr><th>Month</th><th style="text-align:right">Income</th><th style="text-align:right">Expenses</th><th style="text-align:right">Net Profit</th><th style="text-align:right">Margin</th></tr></thead><tbody>'+monthRows+'</tbody></table>' : '') +
+    '<h2>Entry Details</h2>' +
+    '<table><thead><tr><th>Month</th><th>Type</th><th>Category</th><th>Description</th><th style="text-align:right">Amount (SAR)</th><th>Note</th></tr></thead><tbody>'+entryRows+'</tbody></table>' +
+    '<div class="footer"><span>Smart Success IT — P&amp;L Report</span><span>'+list.length+' entries &nbsp;|&nbsp; Net: '+(net>=0?'+':'')+'SAR '+fmt(net)+'</span></div>' +
+    '<br><button onclick="window.print()" style="padding:10px 24px;background:#1e2d4a;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;margin-top:8px">&#128424; Print / Save as PDF</button>' +
+    '</body></html>';
+
+    var w = window.open('','_blank','width=900,height=700');
+    w.document.write(html);
+    w.document.close();
   }
 
   return{render:render,setType:setType,filterType:filterType,addEntry:addEntry,editEntry:editEntry,saveEdit:saveEdit,deleteEntry:deleteEntry,refresh:refresh,renderEntries:renderEntries,exportCSV:exportCSV};
