@@ -114,6 +114,7 @@ window.MoneyLedger = (function() {
     html += '<div class="ph dark" style="display:flex;justify-content:space-between;align-items:center">';
     html += '<span id="ml-ledger-lbl">' + (filterPerson==='all'?'All Transactions':filterPerson+' \u2014 Account') + '</span>';
     html += '<button onclick="MoneyLedger.exportCSV()" class="exp-btn" style="color:#fff;border-color:rgba(255,255,255,.3)">CSV</button>';
+    html += '<button onclick="MoneyLedger.exportPDF()" class="exp-btn" style="color:#fff;border-color:rgba(255,255,255,.3);margin-left:4px">&#128196; PDF</button>';
     html += '</div>';
     html += '<div class="lctrl">';
     if (canSeeAll()) {
@@ -396,6 +397,91 @@ window.MoneyLedger = (function() {
       var sub=card.querySelector('[data-sub]');
       if(sub)sub.textContent='In: '+fmt(s.credit)+' | Out: '+fmt(s.debit);
     });
+  }
+
+  function exportPDF() {
+    // Get current filtered list (same logic as renderList)
+    var q = ((el('ml-srch-inp')||{value:''}).value||'').toLowerCase();
+    var list = entries.slice();
+    if (!canSeeAll()) list = list.filter(function(e){return e.person===APP.user.name;});
+    else if (filterPerson!=='all') list = list.filter(function(e){return e.person===filterPerson;});
+    if (filterDir==='credit') list = list.filter(function(e){return getDir(e)==='credit';});
+    if (filterDir==='debit')  list = list.filter(function(e){return getDir(e)==='debit';});
+    if (q) list = list.filter(function(e){return e.person.toLowerCase().includes(q)||(e.note||'').toLowerCase().includes(q)||(e.type||'').toLowerCase().includes(q);});
+    list.sort(function(a,b){
+      var da=new Date((a.entry_date||'').slice(0,10)+'T00:00:00');
+      var db2=new Date((b.entry_date||'').slice(0,10)+'T00:00:00');
+      return sortDir==='desc'?db2-da:da-db2;
+    });
+
+    if (!list.length) return toast('No data to export', true);
+
+    // Calculate summary
+    var totalCredit = list.filter(function(e){return getDir(e)==='credit';}).reduce(function(s,e){return s+parseFloat(e.amount||0);},0);
+    var totalDebit  = list.filter(function(e){return getDir(e)==='debit'; }).reduce(function(s,e){return s+parseFloat(e.amount||0);},0);
+    var net = totalCredit - totalDebit;
+
+    // Per-person summary
+    var personSummary = {};
+    list.forEach(function(e){
+      if(!personSummary[e.person]) personSummary[e.person]={credit:0,debit:0};
+      if(getDir(e)==='credit') personSummary[e.person].credit+=parseFloat(e.amount||0);
+      else                     personSummary[e.person].debit +=parseFloat(e.amount||0);
+    });
+
+    var filterLabel = filterPerson==='all' ? 'All Members' : filterPerson;
+    var dirLabel    = filterDir==='all' ? 'All Transactions' : filterDir==='credit' ? 'Credits Only' : 'Debits Only';
+    var now = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+
+    // Build HTML for PDF
+    var personRows = Object.entries(personSummary).map(function(kv){
+      var n=kv[0], s=kv[1], pnet=s.credit-s.debit;
+      return '<tr><td>'+n+'</td><td style="color:#16a34a;text-align:right">SAR '+fmt(s.credit)+'</td><td style="color:#dc2626;text-align:right">SAR '+fmt(s.debit)+'</td><td style="font-weight:700;color:'+(pnet>=0?'#16a34a':'#dc2626')+';text-align:right">'+(pnet>=0?'+':'')+'SAR '+fmt(pnet)+'</td></tr>';
+    }).join('');
+
+    var entryRows = list.map(function(e,i){
+      var isCredit = getDir(e)==='credit';
+      return '<tr style="background:'+(i%2===0?'#f9fafb':'#fff')+'">' +
+        '<td>'+fmtDate(e.entry_date)+'</td>' +
+        '<td style="font-weight:600">'+e.person+'</td>' +
+        '<td><span style="padding:2px 8px;border-radius:3px;font-size:11px;background:'+(isCredit?'rgba(22,163,74,.1)':'rgba(220,38,38,.1)')+';color:'+(isCredit?'#16a34a':'#dc2626')+'">'+getTypeName(e)+'</span></td>' +
+        '<td style="color:#16a34a;text-align:right;font-weight:600">'+(isCredit?'SAR '+fmt(e.amount):'')+'</td>' +
+        '<td style="color:#dc2626;text-align:right;font-weight:600">'+(!isCredit?'SAR '+fmt(e.amount):'')+'</td>' +
+        '<td style="color:#6b7280;font-size:12px">'+(e.note||'')+'</td>' +
+        '</tr>';
+    }).join('');
+
+    var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Money Ledger Report</title>' +
+    '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:30px}' +
+    'h1{font-size:22px;color:#1e2d4a;margin-bottom:4px}.sub{color:#6b7280;font-size:13px;margin-bottom:24px}' +
+    '.meta{display:flex;gap:24px;margin-bottom:20px}.meta-item{background:#f3f4f6;border-radius:8px;padding:10px 16px;min-width:140px}' +
+    '.meta-item .label{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px}.meta-item .value{font-size:18px;font-weight:700;margin-top:2px}' +
+    '.credit{color:#16a34a}.debit{color:#dc2626}.net-pos{color:#16a34a}.net-neg{color:#dc2626}' +
+    'h2{font-size:14px;font-weight:700;color:#1e2d4a;margin:20px 0 8px;border-bottom:2px solid #e5e7eb;padding-bottom:4px}' +
+    'table{width:100%;border-collapse:collapse;margin-bottom:16px}th{background:#1e2d4a;color:#fff;padding:8px 10px;text-align:left;font-size:12px}' +
+    'td{padding:7px 10px;border-bottom:1px solid #f3f4f6;font-size:12px}' +
+    '.footer{margin-top:30px;padding-top:12px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;display:flex;justify-content:space-between}' +
+    '@media print{body{padding:15px}button{display:none}}</style></head><body>' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">' +
+    '<div><h1>&#128176; Money Ledger Report</h1><div class="sub">'+filterLabel+' &nbsp;|&nbsp; '+dirLabel+(q?' &nbsp;|&nbsp; Search: "'+q+'"':'')+'</div></div>' +
+    '<div style="text-align:right;font-size:12px;color:#6b7280">Generated: '+now+'<br>Smart Success Portal</div></div>' +
+    '<div class="meta">' +
+    '<div class="meta-item"><div class="label">Total Credits</div><div class="value credit">SAR '+fmt(totalCredit)+'</div></div>' +
+    '<div class="meta-item"><div class="label">Total Debits</div><div class="value debit">SAR '+fmt(totalDebit)+'</div></div>' +
+    '<div class="meta-item"><div class="label">Net Balance</div><div class="value '+(net>=0?'net-pos':'net-neg')+'">'+(net>=0?'+':'')+'SAR '+fmt(net)+'</div></div>' +
+    '<div class="meta-item"><div class="label">Entries</div><div class="value" style="color:#2abfbf">'+list.length+'</div></div>' +
+    '</div>' +
+    (Object.keys(personSummary).length > 1 ?
+      '<h2>Member Summary</h2><table><thead><tr><th>Member</th><th style="text-align:right">Credits</th><th style="text-align:right">Debits</th><th style="text-align:right">Net</th></tr></thead><tbody>'+personRows+'</tbody></table>' : '') +
+    '<h2>Transaction Details</h2>' +
+    '<table><thead><tr><th>Date</th><th>Member</th><th>Category</th><th style="text-align:right">Credit (SAR)</th><th style="text-align:right">Debit (SAR)</th><th>Note</th></tr></thead><tbody>'+entryRows+'</tbody></table>' +
+    '<div class="footer"><span>Smart Success IT — Money Ledger</span><span>'+list.length+' transactions &nbsp;|&nbsp; Net: '+(net>=0?'+':'')+'SAR '+fmt(net)+'</span></div>' +
+    '<br><button onclick="window.print()" style="padding:10px 24px;background:#1e2d4a;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;margin-top:8px">&#128424; Print / Save as PDF</button>' +
+    '</body></html>';
+
+    var w = window.open('','_blank','width=900,height=700');
+    w.document.write(html);
+    w.document.close();
   }
 
   return{render:render,setDir:setDir,toggleSort:toggleSort,setEditDir:setEditDir,setPerson:setPerson,setDirFilter:setDirFilter,addEntry:addEntry,editEntry:editEntry,saveEdit:saveEdit,deleteEntry:deleteEntry,renderList:renderList,exportCSV:exportCSV};
