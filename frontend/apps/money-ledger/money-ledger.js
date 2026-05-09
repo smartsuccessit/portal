@@ -312,7 +312,9 @@ window.MoneyLedger = (function() {
     if(filterDir==='debit')  list=list.filter(function(e){return getDir(e)==='debit';});
     if(q) list=list.filter(function(e){return e.person.toLowerCase().includes(q)||(e.note||'').toLowerCase().includes(q)||(e.type||'').toLowerCase().includes(q);});
     list.sort(function(a,b){
-      var cmp = (a.entry_date||'').localeCompare(b.entry_date||'');
+      var da = new Date((a.entry_date||'').slice(0,10) + 'T00:00:00');
+      var db2 = new Date((b.entry_date||'').slice(0,10) + 'T00:00:00');
+      var cmp = da - db2;
       return sortDir === 'desc' ? -cmp : cmp;
     });
 
