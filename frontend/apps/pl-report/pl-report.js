@@ -355,5 +355,5 @@ window.PLReport = (function() {
     w.document.close();
   }
 
-  return{render:render,setType:setType,filterType:filterType,addEntry:addEntry,editEntry:editEntry,saveEdit:saveEdit,deleteEntry:deleteEntry,refresh:refresh,renderEntries:renderEntries,exportCSV:exportCSV};
+  return{render:render,setType:setType,filterType:filterType,addEntry:addEntry,editEntry:editEntry,saveEdit:saveEdit,deleteEntry:deleteEntry,refresh:refresh,renderEntries:renderEntries,exportCSV:exportCSV,exportPDF:exportPDF};
 })();
