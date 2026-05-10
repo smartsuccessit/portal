@@ -81,6 +81,7 @@ app.delete('/api/money-ledger/:id', mlAuth, async (req, res) => {
 });
 
 app.use('/api/quotations',   require('./routes/quotations'));
+app.use('/api/tax-invoices',  require('./routes/tax-invoices'));
 app.use('/api',              require('./routes/extras'));
 app.get('/api/health',       (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 
@@ -109,8 +110,7 @@ async function runSetup() {
   const conn = await mysql.createConnection(cfg);
   console.log('[Setup] Connected to MySQL');
 
-  await conn.query(`
-    CREATE TABLE IF NOT EXISTS users (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS users (
       id INT AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(100) NOT NULL UNIQUE,
       name_ar VARCHAR(200) NOT NULL DEFAULT '',
@@ -121,29 +121,29 @@ async function runSetup() {
       is_admin TINYINT(1) NOT NULL DEFAULT 0,
       is_approver TINYINT(1) NOT NULL DEFAULT 0,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    CREATE TABLE IF NOT EXISTS app_access (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS app_access (
       user_id INT NOT NULL,
       app_id VARCHAR(50) NOT NULL,
       PRIMARY KEY (user_id, app_id),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    CREATE TABLE IF NOT EXISTS settings (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS settings (
       \`key\` VARCHAR(100) PRIMARY KEY,
       \`value\` TEXT NOT NULL
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    CREATE TABLE IF NOT EXISTS pc_categories (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS pc_categories (
       id INT AUTO_INCREMENT PRIMARY KEY,
       type ENUM('in','out') NOT NULL,
       name_en VARCHAR(200) NOT NULL,
       name_ar VARCHAR(200) NOT NULL,
       sort INT NOT NULL DEFAULT 0
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    CREATE TABLE IF NOT EXISTS petty_cash (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS petty_cash (
       id INT AUTO_INCREMENT PRIMARY KEY,
       type ENUM('in','out') NOT NULL,
       amount DECIMAL(12,2) NOT NULL,
@@ -158,9 +158,9 @@ async function runSetup() {
       pend_delete TINYINT(1) NOT NULL DEFAULT 0,
       del_req_by VARCHAR(100) NOT NULL DEFAULT '',
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    CREATE TABLE IF NOT EXISTS tasks (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS tasks (
       id INT AUTO_INCREMENT PRIMARY KEY,
       title VARCHAR(500) NOT NULL,
       assigned_to VARCHAR(100) NOT NULL,
@@ -171,9 +171,9 @@ async function runSetup() {
       created_by VARCHAR(100) NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    CREATE TABLE IF NOT EXISTS daily_entries (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS daily_entries (
       id INT AUTO_INCREMENT PRIMARY KEY,
       report_date DATE NOT NULL,
       section ENUM('cust','purch','exp') NOT NULL,
@@ -183,30 +183,30 @@ async function runSetup() {
       note TEXT,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_report_date (report_date)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    CREATE TABLE IF NOT EXISTS daily_meta (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS daily_meta (
       report_date DATE PRIMARY KEY,
       quotations INT NOT NULL DEFAULT 0,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    CREATE TABLE IF NOT EXISTS rb_categories (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS rb_categories (
       id      INT AUTO_INCREMENT PRIMARY KEY,
       name_en VARCHAR(200) NOT NULL,
       name_ar VARCHAR(200) NOT NULL DEFAULT '',
       sort    INT NOT NULL DEFAULT 0
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    CREATE TABLE IF NOT EXISTS pl_categories (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS pl_categories (
       id      INT AUTO_INCREMENT PRIMARY KEY,
       type    ENUM('income','expense') NOT NULL,
       name_en VARCHAR(200) NOT NULL,
       name_ar VARCHAR(200) NOT NULL DEFAULT '',
       sort    INT NOT NULL DEFAULT 0
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    CREATE TABLE IF NOT EXISTS pl_entries (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS pl_entries (
       id          INT AUTO_INCREMENT PRIMARY KEY,
       type        ENUM('income','expense') NOT NULL,
       month       INT NOT NULL,
@@ -218,9 +218,9 @@ async function runSetup() {
       entered_by  VARCHAR(100) NOT NULL,
       created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_pl_year_month (year, month)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    CREATE TABLE IF NOT EXISTS money_ledger (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS money_ledger (
       id          INT AUTO_INCREMENT PRIMARY KEY,
       type        VARCHAR(100) NOT NULL,
       direction   ENUM('credit','debit') NOT NULL DEFAULT 'credit',
@@ -232,17 +232,17 @@ async function runSetup() {
       entered_by  VARCHAR(100) NOT NULL,
       created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_ml_person (person)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    CREATE TABLE IF NOT EXISTS ml_categories (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS ml_categories (
       id        INT AUTO_INCREMENT PRIMARY KEY,
       direction ENUM('credit','debit') NOT NULL,
       name_en   VARCHAR(200) NOT NULL,
       name_ar   VARCHAR(200) NOT NULL DEFAULT '',
       sort      INT NOT NULL DEFAULT 0
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    CREATE TABLE IF NOT EXISTS reimbursements (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS reimbursements (
       id               INT AUTO_INCREMENT PRIMARY KEY,
       paid_by          VARCHAR(200) NOT NULL,
       amount           DECIMAL(12,2) NOT NULL,
@@ -260,9 +260,9 @@ async function runSetup() {
       pending_approval TINYINT(1) NOT NULL DEFAULT 0,
       req_by           VARCHAR(100) NOT NULL DEFAULT '',
       created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    CREATE TABLE IF NOT EXISTS invoice_payments (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS invoice_payments (
       id             INT AUTO_INCREMENT PRIMARY KEY,
       invoice_id     INT NOT NULL,
       amount         DECIMAL(12,2) NOT NULL,
@@ -272,9 +272,9 @@ async function runSetup() {
       recorded_by    VARCHAR(100) NOT NULL,
       created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_inv_pay (invoice_id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
-    CREATE TABLE IF NOT EXISTS invoices (
+  await conn.execute(`CREATE TABLE IF NOT EXISTS invoices (
       id                INT AUTO_INCREMENT PRIMARY KEY,
       direction         ENUM('outgoing','incoming') NOT NULL,
       invoice_number    VARCHAR(100) NOT NULL DEFAULT '',
@@ -293,8 +293,9 @@ async function runSetup() {
       created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       INDEX idx_inv_direction (direction),
       INDEX idx_inv_due (due_date)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-  `);
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+
   console.log('[Setup] Tables created');
 
   const defaultUsers = [
@@ -304,7 +305,7 @@ async function runSetup() {
     { name:'Hussam',   name_ar:'\u062d\u0633\u0627\u0645',         ini:'HU', color:'#7a3a1a', role:'Field Technician',      pin:'4567', admin:0, approver:0 },
     { name:'Shahdat',  name_ar:'\u0634\u0647\u062f\u0627\u062a',   ini:'SD', color:'#5a2a7a', role:'Sales Representative',  pin:'5678', admin:0, approver:0 },
   ];
-  const allApps = ['petty-cash','daily-report','tasks','roles','profile','pl-report','money-ledger','reimbursements','invoices','quotations'];
+  const allApps = ['petty-cash','daily-report','tasks','roles','profile','pl-report','money-ledger','reimbursements','invoices','quotations','tax-invoices'];
   for (const u of defaultUsers) {
     const [ex] = await conn.execute('SELECT id FROM users WHERE name=?', [u.name]);
     if (ex.length) { console.log('[Setup] Exists:', u.name); continue; }
@@ -407,7 +408,7 @@ async function runSetup() {
   } catch(e2) { console.log('[Setup] money_ledger fix:', e2.message); }
 
   // Grant new apps to ALL existing users who don't have them yet
-  const newApps = ['pl-report','money-ledger','reimbursements','invoices','quotations'];
+  const newApps = ['pl-report','money-ledger','reimbursements','invoices','quotations','tax-invoices'];
   const allUsers2 = await conn.execute('SELECT id FROM users');
   for (const u of allUsers2[0]) {
     for (const app of newApps) {
@@ -497,6 +498,99 @@ async function runSetup() {
     }
     console.log('[Setup] Quotation tables ready');
   } catch(e2) { console.log('[Setup] Quotation tables error:', e2.message); }
+
+  // Migrate quotations - add bilingual column if missing
+  try {
+    const [blCols] = await conn.execute("SHOW COLUMNS FROM quotations LIKE 'bilingual'");
+    if (blCols.length === 0) {
+      await conn.execute("ALTER TABLE quotations ADD COLUMN bilingual TINYINT(1) NOT NULL DEFAULT 0 AFTER currency");
+      console.log('[Setup] Added bilingual column');
+    }
+  } catch(e2) { console.log('[Setup] bilingual migration:', e2.message); }
+
+  // Migrate quotation_items - add description_ar if missing
+  try {
+    const [arCols] = await conn.execute("SHOW COLUMNS FROM quotation_items LIKE 'description_ar'");
+    if (arCols.length === 0) {
+      await conn.execute("ALTER TABLE quotation_items ADD COLUMN description_ar TEXT NOT NULL DEFAULT '' AFTER description");
+      console.log('[Setup] Added description_ar column');
+    }
+  } catch(e2) { console.log('[Setup] description_ar migration:', e2.message); }
+
+  // Create qt_companies if missing
+  try {
+    await conn.execute(`CREATE TABLE IF NOT EXISTS qt_companies (
+      id           INT AUTO_INCREMENT PRIMARY KEY,
+      name         VARCHAR(300) NOT NULL,
+      name_ar      VARCHAR(300) NOT NULL DEFAULT '',
+      address      TEXT,
+      address_ar   TEXT,
+      phone        VARCHAR(50)  NOT NULL DEFAULT '',
+      email        VARCHAR(200) NOT NULL DEFAULT '',
+      website      VARCHAR(200) NOT NULL DEFAULT '',
+      vat_number   VARCHAR(100) NOT NULL DEFAULT '',
+      logo_url     VARCHAR(500) NOT NULL DEFAULT '',
+      is_default   TINYINT(1)   NOT NULL DEFAULT 0,
+      created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  } catch(e2) { console.log('[Setup] qt_companies:', e2.message); }
+
+  // ── Tax Invoice Tables ──────────────────────────────────────────────────
+  try {
+    await conn.execute(`CREATE TABLE IF NOT EXISTS tax_invoices (
+      id              INT AUTO_INCREMENT PRIMARY KEY,
+      invoice_number  VARCHAR(50) NOT NULL UNIQUE,
+      invoice_date    DATE NOT NULL,
+      supply_date     DATE NULL,
+      due_date        DATE NULL,
+      status          ENUM('Draft','Issued','Paid','Cancelled') NOT NULL DEFAULT 'Draft',
+      invoice_type    ENUM('standard','simplified') NOT NULL DEFAULT 'standard',
+      customer_id     INT NULL,
+      customer_snap   TEXT NOT NULL DEFAULT '{}',
+      from_snap       TEXT NOT NULL DEFAULT '{}',
+      notes           TEXT,
+      footer_text     TEXT,
+      vat_pct         DECIMAL(5,2) NOT NULL DEFAULT 15.00,
+      subtotal        DECIMAL(12,2) NOT NULL DEFAULT 0,
+      vat_amount      DECIMAL(12,2) NOT NULL DEFAULT 0,
+      grand_total     DECIMAL(12,2) NOT NULL DEFAULT 0,
+      currency        VARCHAR(10) NOT NULL DEFAULT 'SAR',
+      bilingual       TINYINT(1) NOT NULL DEFAULT 0,
+      source_quote_id INT NULL,
+      created_by      VARCHAR(100) NOT NULL,
+      created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+    await conn.execute(`CREATE TABLE IF NOT EXISTS tax_invoice_items (
+      id              INT AUTO_INCREMENT PRIMARY KEY,
+      invoice_id      INT NOT NULL,
+      sort_order      INT NOT NULL DEFAULT 0,
+      description     TEXT NOT NULL,
+      description_ar  TEXT NOT NULL DEFAULT '',
+      quantity        DECIMAL(10,3) NOT NULL DEFAULT 1,
+      unit_price      DECIMAL(12,2) NOT NULL DEFAULT 0,
+      line_total      DECIMAL(12,2) NOT NULL DEFAULT 0,
+      FOREIGN KEY (invoice_id) REFERENCES tax_invoices(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+    await conn.execute(`CREATE TABLE IF NOT EXISTS ti_settings (
+      \`key\`   VARCHAR(100) PRIMARY KEY,
+      \`value\` TEXT NOT NULL DEFAULT ''
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
+    const tiDefaults = [
+      ['ti_prefix','INV'],['ti_company_name','Smart Success IT'],
+      ['ti_address','Riyadh, Saudi Arabia'],['ti_phone',''],['ti_email',''],
+      ['ti_website',''],['ti_vat_number',''],['ti_logo_url',''],
+      ['ti_currency','SAR'],['ti_vat_pct','15'],
+      ['ti_footer','Thank you for your business.'],['ti_terms',''],
+    ];
+    for (const [k,v] of tiDefaults) {
+      await conn.execute('INSERT IGNORE INTO ti_settings(`key`,`value`) VALUES(?,?)',[k,v]);
+    }
+    console.log('[Setup] Tax invoice tables ready');
+  } catch(e2) { console.log('[Setup] Tax invoice error:', e2.message); }
 
   await conn.end();
   console.log('[Setup] Done!');

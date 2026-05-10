@@ -8,19 +8,22 @@ const { requireAuth } = require('../middleware/auth');
 async function nextQuoteNumber() {
   const rows = await db.query("SELECT `value` FROM qt_settings WHERE `key`='qt_prefix'");
   const prefix = (rows[0] && rows[0].value) ? rows[0].value : 'QTSS';
-  const now    = new Date();
-  const yyyy   = now.getFullYear();
-  const mm     = String(now.getMonth() + 1).padStart(2, '0');
-  const pattern = prefix + '-' + yyyy + '-' + mm + '%';
+  const now  = new Date();
+  const yyyy = now.getFullYear();
+  const mm   = String(now.getMonth() + 1).padStart(2, '0');
+  // Pattern: PREFIX-YYYY-MM followed by exactly 3 digits
+  const pattern = prefix + '-' + yyyy + '-' + mm + '___';
   const [existing] = await db.pool.execute(
     'SELECT quote_number FROM quotations WHERE quote_number LIKE ? ORDER BY id DESC LIMIT 1',
     [pattern]
   );
   let seq = 1;
   if (existing.length) {
+    // Extract last 3 chars as sequence number
     const last = existing[0].quote_number;
-    const parts = last.split('-');
-    seq = parseInt(parts[parts.length - 1] || '0') + 1;
+    const seqStr = last.slice(-(3));
+    const parsed = parseInt(seqStr);
+    if (!isNaN(parsed)) seq = parsed + 1;
   }
   return prefix + '-' + yyyy + '-' + mm + String(seq).padStart(3, '0');
 }

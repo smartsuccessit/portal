@@ -416,6 +416,7 @@ window.Quotations = (function() {
         '</select>' +
         '<button onclick="Quotations.openForm('+id+')" style="padding:6px 14px;border:1px solid var(--bord);border-radius:6px;background:var(--surf2);color:var(--text);cursor:pointer">Edit</button>' +
         '<button onclick="Quotations.duplicate('+id+')" style="padding:6px 14px;border:1px solid var(--bord);border-radius:6px;background:var(--surf2);color:var(--text);cursor:pointer">Duplicate</button>' +
+        '<button onclick="Quotations.convertToInvoice('+id+')" style="padding:6px 14px;border:none;border-radius:6px;background:#16a34a;color:#fff;cursor:pointer;font-weight:700">&#129534; Convert to Invoice</button>' +
         '<button onclick="Quotations.printPDF('+id+')" style="padding:6px 14px;border:none;border-radius:6px;background:#1e2d4a;color:#fff;cursor:pointer;font-weight:700">&#128196; PDF</button>' +
       '</div></div>';
 
@@ -573,149 +574,189 @@ window.Quotations = (function() {
     var qrData=generateQRData(q);
 
     var itemRows=(q.items||[]).map(function(it,i){
-      var descHTML=esc(it.description||'');
-      if(bilingual&&it.description_ar)descHTML+='<br><span style="direction:rtl;font-size:10px;color:#6b7280">'+esc(it.description_ar)+'</span>';
-      return '<tr style="background:'+(i%2===0?'#fff':'#f9fafb')+'">' +
-        '<td style="padding:8px 12px;font-size:11px;color:#6b7280;border-bottom:1px solid #f3f4f6">'+(i+1)+'</td>' +
-        '<td style="padding:8px 12px;font-size:12px;border-bottom:1px solid #f3f4f6">'+descHTML+'</td>' +
-        '<td style="padding:8px 12px;text-align:right;font-size:12px;border-bottom:1px solid #f3f4f6">'+parseFloat(it.quantity||0)+'</td>' +
-        '<td style="padding:8px 12px;text-align:right;font-size:12px;border-bottom:1px solid #f3f4f6">'+cur+' '+fmt(it.unit_price||0)+'</td>' +
-        '<td style="padding:8px 12px;text-align:right;font-size:12px;font-weight:600;border-bottom:1px solid #f3f4f6">'+cur+' '+fmt(it.line_total||0)+'</td>' +
-      '</tr>';
+      var descHTML='<div style="font-size:12px;font-weight:500">'+esc(it.description||'')+'</div>';
+      if(bilingual&&it.description_ar)descHTML+='<div style="direction:rtl;font-size:11px;color:#64748b;margin-top:2px">'+esc(it.description_ar)+'</div>';
+      return '<tr style="background:'+(i%2===0?'#ffffff':'#f8fafc')+'">' +
+        '<td style="padding:10px 14px;font-size:12px;color:#94a3b8;border-bottom:1px solid #f1f5f9;width:30px">'+(i+1)+'</td>' +
+        '<td style="padding:10px 14px;border-bottom:1px solid #f1f5f9">'+descHTML+'</td>' +
+        '<td style="padding:10px 14px;text-align:right;font-size:13px;border-bottom:1px solid #f1f5f9;color:#334155">'+parseFloat(it.quantity||0)+'</td>' +
+        '<td style="padding:10px 14px;text-align:right;font-size:13px;border-bottom:1px solid #f1f5f9;color:#334155">'+cur+' '+fmt(it.unit_price||0)+'</td>' +
+        '<td style="padding:10px 14px;text-align:right;font-size:13px;font-weight:700;border-bottom:1px solid #f1f5f9;color:#1e2d4a">'+cur+' '+fmt(it.line_total||0)+'</td>' +
+        '</tr>';
     }).join('');
 
     var today=new Date().toISOString().slice(0,10);
     var exp=q.expiry_date&&q.expiry_date<today&&q.status!=='Approved';
 
-    var fromBlock='';
-    if(logo)fromBlock+='<img src="'+logo+'" style="height:50px;margin-bottom:8px;display:block">';
-    if(bilingual&&from.name_ar){
-      fromBlock+='<div style="font-size:17px;font-weight:800;color:#1e2d4a">'+esc(from.name||'')+'</div>' +
-        '<div style="font-size:14px;font-weight:700;color:#1e2d4a;direction:rtl;margin-top:2px">'+esc(from.name_ar||'')+'</div>';
+    // ── Header band ──────────────────────────────────────────────────────
+    // Left: logo + company info | Right: QUOTATION title + quote details
+    var logoHTML = logo ? '<div style="background:#fff;border-radius:10px;padding:6px 10px;display:inline-block;margin-bottom:10px"><img src="'+logo+'" style="height:44px;display:block"></div>' : '';
+
+    // Company name - bilingual side by side
+    var compNameHTML = '';
+    if(bilingual && from.name_ar) {
+      compNameHTML = '<div style="display:flex;align-items:baseline;gap:20px;flex-wrap:wrap">' +
+        '<span style="font-size:19px;font-weight:900;color:#fff;letter-spacing:-0.3px">'+esc(from.name||'')+'</span>' +
+        '<span style="width:1px;height:18px;background:rgba(255,255,255,0.3);display:inline-block;align-self:center"></span>' +
+        '<span style="font-size:17px;font-weight:800;color:rgba(255,255,255,0.9);direction:rtl">'+esc(from.name_ar)+'</span>' +
+        '</div>';
     } else {
-      fromBlock+='<div style="font-size:17px;font-weight:800;color:#1e2d4a">'+esc(from.name||'')+'</div>';
+      compNameHTML = '<div style="font-size:19px;font-weight:900;color:#fff;letter-spacing:-0.3px">'+esc(from.name||'')+'</div>';
     }
-    fromBlock+='<div style="font-size:10px;color:#6b7280;margin-top:5px;line-height:1.8">';
-    if(from.address)fromBlock+=esc(from.address)+'<br>';
-    if(bilingual&&from.address_ar)fromBlock+='<span dir="rtl">'+esc(from.address_ar)+'</span><br>';
-    if(from.phone)fromBlock+='Tel: '+esc(from.phone)+'<br>';
-    if(from.email)fromBlock+=esc(from.email)+'<br>';
-    if(from.website)fromBlock+=esc(from.website)+'<br>';
-    if(from.vat_number)fromBlock+='VAT: '+esc(from.vat_number);
-    fromBlock+='</div>';
+
+    // Company details in header
+    var compDetails = '<div style="font-size:10px;color:rgba(255,255,255,0.75);margin-top:8px;line-height:2">';
+    // Address - break into multiple lines if long
+    if(from.address) {
+      var addrParts = from.address.split(',');
+      compDetails += '<div>'+addrParts.map(function(p){return esc(p.trim());}).join('<br>')+'</div>';
+    }
+    if(bilingual&&from.address_ar) {
+      compDetails += '<div dir="rtl" style="text-align:left">'+esc(from.address_ar)+'</div>';
+    }
+    // Contact line
+    var contacts = [];
+    if(from.phone)  contacts.push('Tel: '+esc(from.phone));
+    if(from.email)  contacts.push(esc(from.email));
+    if(from.website)contacts.push(esc(from.website));
+    if(contacts.length) compDetails += '<div>'+contacts.join(' &nbsp;&bull;&nbsp; ')+'</div>';
+    // VAT - only show if it doesn't look like an email address
+    if(from.vat_number && from.vat_number.indexOf('@')===-1 && from.vat_number.trim()!=='') {
+      compDetails += '<div>VAT: '+esc(from.vat_number)+'</div>';
+    }
+    compDetails += '</div>';
+
+    // Right side quote header
+    var quoteTitle = bilingual
+      ? '<div style="text-align:right"><div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-0.5px;line-height:1">QUOTATION</div><div style="font-size:18px;font-weight:800;color:rgba(255,255,255,0.85);direction:rtl;margin-top:2px">&#1593;&#1585;&#1590; &#1587;&#1593;&#1585;</div></div>'
+      : '<div style="font-size:30px;font-weight:900;color:#fff;letter-spacing:-0.5px;text-align:right">QUOTATION</div>';
+
+    var quoteDetails = '<div style="text-align:right;margin-top:8px">' +
+      '<div style="display:inline-block;background:rgba(255,255,255,0.12);border-radius:6px;padding:8px 14px">' +
+        '<div style="font-size:15px;font-weight:800;color:#2abfbf;letter-spacing:0.5px">'+q.quote_number+'</div>' +
+        '<div style="font-size:10px;color:rgba(255,255,255,0.7);margin-top:5px;line-height:1.8">' +
+          'Date: <strong style="color:#fff">'+fmtD(q.quote_date)+'</strong><br>' +
+          (q.expiry_date?'Expires: <strong style="color:'+(exp?'#fca5a5':'#fff')+'">'+fmtD(q.expiry_date)+'</strong><br>':'')+
+          'Currency: <strong style="color:#fff">'+cur+'</strong>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+    // ── Bill To + QR ─────────────────────────────────────────────────────
+    var billToLabel = bilingual ? 'BILL TO &nbsp;/&nbsp; <span dir="rtl">&#1605;&#1608;&#1580;&#1607; &#1573;&#1604;&#1609;</span>' : 'BILL TO';
+    var billTo = '<div style="display:grid;grid-template-columns:1fr auto;gap:20px;align-items:start;margin-bottom:24px">' +
+      '<div style="background:#f8fafc;border-radius:8px;padding:16px;border-left:4px solid #2abfbf">' +
+        '<div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:#94a3b8;margin-bottom:8px">'+billToLabel+'</div>' +
+        '<div style="font-size:16px;font-weight:800;color:#1e2d4a;margin-bottom:6px">'+esc(cust.company_name||'')+'</div>' +
+        '<div style="font-size:11px;color:#64748b;line-height:1.8">' +
+          (cust.contact_name?'<div>Attn: <strong>'+esc(cust.contact_name)+'</strong></div>':'')+
+          (cust.address?'<div>'+esc(cust.address)+'</div>':'')+
+          (cust.phone?'<div>'+esc(cust.phone)+'</div>':'')+
+          (cust.email?'<div>'+esc(cust.email)+'</div>':'')+
+          (cust.vat_number?'<div>VAT: <strong>'+esc(cust.vat_number)+'</strong></div>':'')+
+        '</div>' +
+      '</div>' +
+      '<div style="text-align:center">' +
+        '<img id="qr-code-img" src="https://chart.googleapis.com/chart?chs=90x90&cht=qr&chl='+encodeURIComponent(qrData)+'&choe=UTF-8" style="border:3px solid #e2e8f0;border-radius:8px;display:block;width:96px;height:96px" alt="QR Code">' +
+        '<div style="font-size:8px;color:#94a3b8;margin-top:4px;text-align:center">Scan to verify</div>' +
+      '</div>' +
+    '</div>';
+
+    // ── Totals ────────────────────────────────────────────────────────────
+    var totalsHTML =
+      '<div style="display:flex;justify-content:flex-end;margin-bottom:20px">' +
+      '<div style="width:280px">' +
+        '<div style="background:#f8fafc;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">' +
+          '<div style="display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #e2e8f0">' +
+            '<span style="font-size:12px;color:#64748b">Subtotal'+(bilingual?' / &#1575;&#1604;&#1605;&#1580;&#1605;&#1608;&#1593; &#1575;&#1604;&#1601;&#1585;&#1593;&#1610;':'')+'</span>' +
+            '<span style="font-size:13px;font-weight:600;color:#1e2d4a">'+cur+' '+fmt(sub)+'</span>' +
+          '</div>' +
+          '<div style="display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid #e2e8f0">' +
+            '<span style="font-size:12px;color:#64748b">VAT ('+parseFloat(q.vat_pct||15)+'%)'+(bilingual?' / &#1590;&#1585;&#1610;&#1576;&#1577; &#1575;&#1604;&#1602;&#1610;&#1605;&#1577; &#1575;&#1604;&#1605;&#1590;&#1575;&#1601;&#1577;':'')+'</span>' +
+            '<span style="font-size:13px;font-weight:600;color:#1e2d4a">'+cur+' '+fmt(vat)+'</span>' +
+          '</div>' +
+          '<div style="display:flex;justify-content:space-between;padding:12px 16px;background:#1e2d4a">' +
+            '<span style="font-size:14px;font-weight:800;color:#fff">Grand Total'+(bilingual?' / &#1575;&#1604;&#1573;&#1580;&#1605;&#1575;&#1604;&#1610;':'')+'</span>' +
+            '<span style="font-size:16px;font-weight:900;color:#2abfbf">'+cur+' '+fmt(tot)+'</span>' +
+          '</div>' +
+        '</div>' +
+      '</div></div>';
 
     var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+q.quote_number+'</title>' +
-    '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>' +
+    '' +
     '<style>' +
     '*{margin:0;padding:0;box-sizing:border-box}' +
-    'body{font-family:Arial,sans-serif;font-size:12px;color:#111;background:#f3f4f6}' +
-    '.page{width:210mm;min-height:297mm;padding:16mm 18mm;margin:0 auto;background:#fff;box-shadow:0 0 20px rgba(0,0,0,.08)}' +
+    'body{font-family:Arial,sans-serif;background:#e2e8f0;color:#111}' +
+    '.topbar{background:#1e2d4a;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:99}' +
+    '.page{width:210mm;min-height:297mm;margin:20px auto;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.12);border-radius:4px;overflow:hidden}' +
+    '.header-band{background:linear-gradient(135deg,#1e2d4a 0%,#2d4a6e 100%);padding:28px 32px;display:flex;justify-content:space-between;align-items:flex-start}' +
+    '.body-pad{padding:28px 32px}' +
     'table{width:100%;border-collapse:collapse}' +
-    '.no-print{background:#1e2d4a;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:99}' +
-    '@media print{.no-print{display:none!important}body{background:#fff}.page{box-shadow:none;padding:12mm 15mm;width:100%;min-height:0}@page{size:A4;margin:0}}' +
+    'th{background:#1e2d4a;color:#fff;padding:10px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px}' +
+    '.section-title{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:#94a3b8;margin-bottom:10px}' +
+    '@media print{.topbar{display:none!important}body{background:#fff}.page{box-shadow:none;margin:0;border-radius:0;width:100%;min-height:0}@page{size:A4;margin:0}}' +
     '</style></head><body>' +
 
-    '<div class="no-print">' +
-      '<span style="color:#fff;font-weight:700;font-size:14px">'+q.quote_number+'</span>' +
-      '<button onclick="window.print()" style="padding:8px 22px;background:#2abfbf;color:#fff;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer">&#128424; Print / Save as PDF</button>' +
+    '<div class="topbar">' +
+      '<span style="color:#fff;font-weight:700">'+q.quote_number+'</span>' +
+      '<button onclick="window.print()" style="padding:8px 22px;background:#2abfbf;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">&#128424; Print / Save as PDF</button>' +
     '</div>' +
 
     '<div class="page">' +
 
-    // Header band
-    '<div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:18px;margin-bottom:18px;border-bottom:3px solid #1e2d4a">' +
-      '<div>'+fromBlock+'</div>' +
-      '<div style="text-align:right">' +
-        (bilingual?
-          '<div style="display:flex;gap:10px;justify-content:flex-end;align-items:baseline">' +
-            '<div style="font-size:22px;font-weight:800;color:#1e2d4a">QUOTATION</div>' +
-            '<div style="font-size:16px;font-weight:800;color:#1e2d4a;direction:rtl">&#1593;&#1585;&#1590; &#1587;&#1593;&#1585;</div>' +
-          '</div>'
-          :'<div style="font-size:24px;font-weight:800;color:#1e2d4a;letter-spacing:-0.5px">QUOTATION</div>')+
-        '<div style="font-size:14px;font-weight:700;color:#2abfbf;margin-top:3px">'+q.quote_number+'</div>' +
-        '<div style="font-size:11px;color:#6b7280;margin-top:7px;line-height:1.8">' +
-          'Date: <strong>'+fmtD(q.quote_date)+'</strong><br>' +
-          (q.expiry_date?'Expires: <strong style="color:'+(exp?'#dc2626':'inherit')+'">'+fmtD(q.expiry_date)+'</strong><br>':'')+
-          'Currency: <strong>'+cur+'</strong>' +
+    // Navy header band
+    '<div class="header-band">' +
+      '<div style="flex:1">' +
+        logoHTML +
+        compNameHTML +
+        compDetails +
+      '</div>' +
+      '<div style="flex-shrink:0;margin-left:32px">' +
+        quoteTitle +
+        quoteDetails +
+      '</div>' +
+    '</div>' +
+
+    '<div class="body-pad">' +
+      billTo +
+
+      // Items table
+      '<div style="margin-bottom:20px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0">' +
+      '<table>' +
+        '<thead><tr>' +
+          '<th style="text-align:left;width:30px">#</th>' +
+          '<th style="text-align:left">Description'+(bilingual?' / &#1575;&#1604;&#1608;&#1589;&#1601;':'')+'</th>' +
+          '<th style="text-align:right;width:60px">Qty'+(bilingual?' / &#1575;&#1604;&#1603;&#1605;&#1610;&#1577;':'')+'</th>' +
+          '<th style="text-align:right;width:120px">Unit Price'+(bilingual?' / &#1587;&#1593;&#1585; &#1575;&#1604;&#1608;&#1581;&#1583;&#1577;':'')+'</th>' +
+          '<th style="text-align:right;width:120px">Total'+(bilingual?' / &#1575;&#1604;&#1573;&#1580;&#1605;&#1575;&#1604;&#1610;':'')+'</th>' +
+        '</tr></thead>' +
+        '<tbody>'+itemRows+'</tbody>' +
+      '</table></div>' +
+
+      totalsHTML +
+
+      (q.notes?'<div style="margin-bottom:16px;background:#f0f9ff;border-radius:8px;padding:14px 16px;border-left:4px solid #2abfbf">' +
+        '<div class="section-title">Notes</div>' +
+        '<div style="font-size:12px;color:#334155;line-height:1.6">'+esc(q.notes)+'</div>' +
+      '</div>':'')+
+
+      // Footer
+      '<div style="margin-top:20px;padding-top:16px;border-top:2px solid #f1f5f9;display:flex;justify-content:space-between;align-items:flex-end">' +
+        '<div style="font-size:10px;color:#94a3b8;line-height:1.8">' +
+          (q.footer_text?'<div style="max-width:380px">'+esc(q.footer_text)+'</div>':'')+
+        '</div>' +
+        '<div style="text-align:right;font-size:10px;color:#94a3b8">' +
+          '<div style="font-weight:700;color:#1e2d4a;font-size:11px">'+esc(from.name||'')+'</div>' +
+          '<div>'+q.quote_number+'</div>' +
         '</div>' +
       '</div>' +
-    '</div>' +
 
-    // Bill to + QR side by side
-    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:20px">' +
-      '<div style="flex:1;background:#f8fafc;border-radius:6px;padding:12px">' +
-        '<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-bottom:5px">'+
-          (bilingual?'Bill To / &#1605;&#1608;&#1580;&#1607; &#1573;&#1604;&#1609;':'Bill To')+'</div>' +
-        '<div style="font-size:14px;font-weight:700;color:#1e2d4a">'+esc(cust.company_name||'')+'</div>' +
-        '<div style="font-size:11px;color:#6b7280;margin-top:3px;line-height:1.7">' +
-          (cust.contact_name?'Attn: '+esc(cust.contact_name)+'<br>':'')+
-          (cust.address?esc(cust.address)+'<br>':'')+
-          (cust.phone?esc(cust.phone)+'<br>':'')+
-          (cust.email?esc(cust.email)+'<br>':'')+
-          (cust.vat_number?'VAT: '+esc(cust.vat_number):'')+
-        '</div>' +
-      '</div>' +
-      '<div style="text-align:center">' +
-        '<div id="qr-code" style="display:inline-block"></div>' +
-        '<div style="font-size:9px;color:#6b7280;margin-top:4px">Scan for details</div>' +
-      '</div>' +
-    '</div>' +
+    '</div></div>' + // end body-pad + page
 
-    // Items
-    '<table style="margin-bottom:16px">' +
-      '<thead><tr style="background:#1e2d4a;color:#fff">' +
-        '<th style="padding:8px 12px;text-align:left;font-size:10px;width:28px">#</th>' +
-        '<th style="padding:8px 12px;text-align:left;font-size:10px">Description'+(bilingual?' / &#1575;&#1604;&#1608;&#1589;&#1601;':'')+'</th>' +
-        '<th style="padding:8px 12px;text-align:right;font-size:10px;width:50px">Qty</th>' +
-        '<th style="padding:8px 12px;text-align:right;font-size:10px;width:110px">Unit Price</th>' +
-        '<th style="padding:8px 12px;text-align:right;font-size:10px;width:110px">Total</th>' +
-      '</tr></thead><tbody>'+itemRows+'</tbody>' +
-    '</table>' +
-
-    // Totals
-    '<div style="display:flex;justify-content:flex-end;margin-bottom:16px">' +
-      '<div style="width:255px">' +
-        '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #e5e7eb">' +
-          '<span style="color:#6b7280;font-size:11px">Subtotal'+(bilingual?' / &#1575;&#1604;&#1605;&#1580;&#1605;&#1608;&#1593;':'')+'</span>' +
-          '<span style="font-weight:600;font-size:12px">'+cur+' '+fmt(sub)+'</span></div>' +
-        '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #e5e7eb">' +
-          '<span style="color:#6b7280;font-size:11px">VAT ('+parseFloat(q.vat_pct||15)+'%)</span>' +
-          '<span style="font-weight:600;font-size:12px">'+cur+' '+fmt(vat)+'</span></div>' +
-        '<div style="display:flex;justify-content:space-between;padding:9px 10px;background:#1e2d4a;color:#fff;border-radius:4px;margin-top:4px">' +
-          '<span style="font-weight:700;font-size:13px">Grand Total'+(bilingual?' / &#1575;&#1604;&#1573;&#1580;&#1605;&#1575;&#1604;&#1610;':'')+'</span>' +
-          '<span style="font-weight:800;font-size:15px;color:#2abfbf">'+cur+' '+fmt(tot)+'</span></div>' +
-      '</div>' +
-    '</div>' +
-
-    (q.notes?'<div style="margin-bottom:12px;padding:10px 12px;background:#f8fafc;border-radius:6px;border-left:4px solid #2abfbf"><div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:4px">Notes</div><div style="font-size:11px">'+esc(q.notes)+'</div></div>':'')+
-
-    // Footer
-    '<div style="margin-top:16px;padding-top:12px;border-top:1px solid #e5e7eb">' +
-      (q.footer_text?'<p style="font-size:10px;color:#6b7280;margin-bottom:8px">'+esc(q.footer_text)+'</p>':'')+
-      '<div style="display:flex;justify-content:space-between;font-size:9px;color:#9ca3af">' +
-        '<span>'+esc(from.name||'')+'</span>' +
-        '<span>'+q.quote_number+'</span>' +
-      '</div>' +
-    '</div>' +
-
-    '</div>' + // end .page
-
-    // QR init script
-    '<script>' +
-    'window.onload=function(){' +
-      'try{' +
-        'new QRCode(document.getElementById("qr-code"),{' +
-          'text:'+JSON.stringify(qrData)+',' +
-          'width:90,height:90,' +
-          'colorDark:"#1e2d4a",colorLight:"#ffffff",' +
-          'correctLevel:QRCode.CorrectLevel.M' +
-        '});' +
-      '}catch(e){var d=document.getElementById("qr-code");if(d)d.style.display="none";}' +
-    '};' +
-    '<\/script>' +
+'' +
     '</body></html>';
 
-    var w=window.open('','_blank','width=920,height=750');
+    var w=window.open('','_blank','width=960,height=800');
     w.document.write(html);
     w.document.close();
   }
@@ -784,7 +825,7 @@ window.Quotations = (function() {
 
   function newComp() {
     compEditingId=null;
-    var modal=el('qt-comp-modal');if(modal)renderCompModal(modal,{});
+    var modal=el('qt-comp-modal');if(modal)renderCompModal(modal,{id:null,name:'',name_ar:'',address:'',address_ar:'',phone:'',email:'',website:'',vat_number:'',logo_url:'',is_default:0});
   }
 
   function editComp(id) {
@@ -888,8 +929,17 @@ window.Quotations = (function() {
     return['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()]+' '+dt.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][dt.getMonth()]+' '+dt.getFullYear();
   }
 
+  async function convertToInvoice(quoteId) {
+    if (!window.TaxInvoices) return toast('Tax Invoices module not loaded', true);
+    var newId = await window.TaxInvoices.fromQuote(quoteId);
+    if (newId) {
+      // Switch to tax-invoices app
+      if (window.openApp) openApp('tax-invoices');
+    }
+  }
+
   return{
-    render,showList,openForm,openPreview,printPDF,openCompanies,openCustomers,
+    render,showList,openForm,openPreview,printPDF,openCompanies,openCustomers,convertToInvoice,
     setFilter,clearFilters,addItemRow,removeRow,recalc,
     fillCompany,fillCustomer,saveNewCustomer,saveForm,
     changeStatus,duplicate,deleteQ,

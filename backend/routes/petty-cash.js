@@ -54,6 +54,17 @@ router.delete('/categories/:id', requireAdmin, async (req, res) => {
   catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+router.put('/:id', requireAuth, async (req, res) => {
+  try {
+    const { type, amount, category, description, note } = req.body;
+    await db.pool.execute(
+      'UPDATE petty_cash SET type=?,amount=?,category=?,description=?,note=? WHERE id=?',
+      [type, amount, category, description, note||'', req.params.id]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 router.put('/:id/approve', requireAuth, async (req, res) => {
   try {
     const perms = await getPerms();

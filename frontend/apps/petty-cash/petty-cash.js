@@ -226,7 +226,10 @@ window.PettyCash = (() => {
         <td>${e.type==='out'? `<span class="aout">-${fmt(e.amount)}</span>`: '<span style="color:var(--bord)">—</span>'}</td>
         <td><span class="bc">${fmt(bal)}</span></td>
         <td>${sc}</td>
-        <td>${!e.pend_delete ? `<button class="del-btn" onclick="PettyCash.reqDel(${e.id})">&#10005;</button>` : ''}</td>
+        <td style="display:flex;gap:4px">
+          ${!e.pend_delete ? `<button class="act-btn" onclick="PettyCash.editEntry(${e.id})" style="font-size:10px;padding:3px 8px">Edit</button>` : ''}
+          ${!e.pend_delete ? `<button class="del-btn" onclick="PettyCash.reqDel(${e.id})">&#10005;</button>` : ''}
+        </td>
       </tr>`;
     }).join('');
   }
@@ -257,5 +260,62 @@ window.PettyCash = (() => {
     } catch(e) { toast(e.message, true); }
   }
 
-  return { render, setType, setFilter, addEntry, approveEntry, reqDel, approveDel, renderLedger, exportCSV };
+  // Edit entry
+  let editingPCId = null;
+
+  function editEntry(id) {
+    const e = entries.find(x => x.id === id);
+    if (!e) return;
+    editingPCId = id;
+    // Build a simple modal dynamically
+    let modal = document.getElementById('pc-edit-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.className = 'overlay';
+      modal.id = 'pc-edit-modal';
+      document.body.appendChild(modal);
+    }
+    const catOpts = cats.map(c => `<option value="${APP.lang==='ar'?c.name_ar:c.name_en}" ${(APP.lang==='ar'?c.name_ar:c.name_en)===e.category?'selected':''}>${APP.lang==='ar'?c.name_ar:c.name_en}</option>`).join('');
+    modal.innerHTML = `<div class="modal">
+      <h3>Edit Entry</h3>
+      <div class="mf">
+        <div><label>Type</label>
+          <select id="pc-em-type">
+            <option value="in" ${e.type==='in'?'selected':''}>Cash In</option>
+            <option value="out" ${e.type==='out'?'selected':''}>Cash Out</option>
+          </select>
+        </div>
+        <div><label>Amount (SAR)</label><input type="number" id="pc-em-amt" value="${parseFloat(e.amount).toFixed(2)}" step="0.01" min="0"></div>
+        <div><label>Category</label><select id="pc-em-cat">${catOpts}</select></div>
+        <div><label>Description</label><input type="text" id="pc-em-desc" value="${e.description||''}"></div>
+        <div><label>Note</label><input type="text" id="pc-em-note" value="${e.note||''}"></div>
+      </div>
+      <div class="mact">
+        <button class="btn-c" onclick="closeModal('pc-edit-modal')">Cancel</button>
+        <button class="btn-s" onclick="PettyCash.saveEdit()">Save Changes</button>
+      </div>
+    </div>`;
+    openModal('pc-edit-modal');
+  }
+
+  async function saveEdit() {
+    const type = (el('pc-em-type')||{value:'in'}).value;
+    const amt  = parseFloat((el('pc-em-amt')||{value:0}).value);
+    const cat  = (el('pc-em-cat') ||{value:''}).value;
+    const desc = (el('pc-em-desc')||{value:''}).value.trim();
+    const note = (el('pc-em-note')||{value:''}).value.trim();
+    if(!desc) return toast('Add a description', true);
+    if(!amt||amt<=0) return toast('Enter a valid amount', true);
+    try {
+      await API.req('PUT', `/petty-cash/${editingPCId}`, {type,amount:amt,category:cat,description:desc,note});
+      const e = entries.find(x=>x.id===editingPCId);
+      if(e){ e.type=type; e.amount=amt; e.category=cat; e.description=desc; e.note=note; }
+      closeModal('pc-edit-modal');
+      entries = await API.getEntries();
+      renderLedger(); updateSummary();
+      toast('Entry updated');
+    } catch(e2){ toast(e2.message, true); }
+  }
+
+  return { render, setType, setFilter, addEntry, approveEntry, reqDel, approveDel, editEntry, saveEdit, renderLedger, exportCSV };
 })();
