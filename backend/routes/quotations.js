@@ -52,6 +52,44 @@ router.post('/settings', requireAuth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Companies (From profiles) ────────────────────────────────────────────
+router.get('/companies', requireAuth, async (req, res) => {
+  try { res.json(await db.query('SELECT * FROM qt_companies ORDER BY is_default DESC, id ASC')); }
+  catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/companies', requireAuth, async (req, res) => {
+  try {
+    const { name, name_ar='', address='', address_ar='', phone='', email='', website='', vat_number='', logo_url='', is_default=0 } = req.body;
+    if (!name) return res.status(400).json({ error: 'Company name required' });
+    if (is_default) await db.pool.execute('UPDATE qt_companies SET is_default=0');
+    const [r] = await db.pool.execute(
+      'INSERT INTO qt_companies(name,name_ar,address,address_ar,phone,email,website,vat_number,logo_url,is_default) VALUES(?,?,?,?,?,?,?,?,?,?)',
+      [name, name_ar, address, address_ar, phone, email, website, vat_number, logo_url, is_default ? 1 : 0]
+    );
+    res.json(await db.getOne('SELECT * FROM qt_companies WHERE id=?', [r.insertId]));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.put('/companies/:id', requireAuth, async (req, res) => {
+  try {
+    const { name, name_ar='', address='', address_ar='', phone='', email='', website='', vat_number='', logo_url='', is_default=0 } = req.body;
+    if (is_default) await db.pool.execute('UPDATE qt_companies SET is_default=0');
+    await db.pool.execute(
+      'UPDATE qt_companies SET name=?,name_ar=?,address=?,address_ar=?,phone=?,email=?,website=?,vat_number=?,logo_url=?,is_default=? WHERE id=?',
+      [name, name_ar, address, address_ar, phone, email, website, vat_number, logo_url, is_default ? 1 : 0, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete('/companies/:id', requireAuth, async (req, res) => {
+  try {
+    await db.pool.execute('DELETE FROM qt_companies WHERE id=?', [req.params.id]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Customers ─────────────────────────────────────────────────────────────
 router.get('/customers', requireAuth, async (req, res) => {
   try {
@@ -142,21 +180,21 @@ router.post('/', requireAuth, async (req, res) => {
     const from_snap     = JSON.stringify(b.from_snap     || {});
     const [r] = await conn.execute(
       `INSERT INTO quotations(quote_number,quote_date,expiry_date,status,customer_id,
-       customer_snap,from_snap,notes,footer_text,vat_pct,subtotal,vat_amount,grand_total,currency,created_by)
-       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       customer_snap,from_snap,notes,footer_text,vat_pct,subtotal,vat_amount,grand_total,currency,bilingual,created_by)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [quote_number, b.quote_date || new Date().toISOString().slice(0,10),
        b.expiry_date || null, b.status || 'Draft', b.customer_id || null,
        customer_snap, from_snap, b.notes || '', b.footer_text || '',
        b.vat_pct || 15, b.subtotal || 0, b.vat_amount || 0, b.grand_total || 0,
-       b.currency || 'SAR', req.user.name]
+       b.currency || 'SAR', b.bilingual || 0, req.user.name]
     );
     const qid = r.insertId;
     const items = Array.isArray(b.items) ? b.items : [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       await conn.execute(
-        'INSERT INTO quotation_items(quotation_id,sort_order,description,quantity,unit_price,line_total) VALUES(?,?,?,?,?,?)',
-        [qid, i, it.description || '', it.quantity || 1, it.unit_price || 0, it.line_total || 0]
+        'INSERT INTO quotation_items(quotation_id,sort_order,description,description_ar,quantity,unit_price,line_total) VALUES(?,?,?,?,?,?,?)',
+        [qid, i, it.description || '', it.description_ar || '', it.quantity || 1, it.unit_price || 0, it.line_total || 0]
       );
     }
     await conn.commit();
@@ -185,11 +223,11 @@ router.put('/:id', requireAuth, async (req, res) => {
     await conn.execute(
       `UPDATE quotations SET quote_date=?,expiry_date=?,status=?,customer_id=?,
        customer_snap=?,from_snap=?,notes=?,footer_text=?,vat_pct=?,
-       subtotal=?,vat_amount=?,grand_total=?,currency=? WHERE id=?`,
+       subtotal=?,vat_amount=?,grand_total=?,currency=?,bilingual=? WHERE id=?`,
       [b.quote_date, b.expiry_date || null, b.status || 'Draft', b.customer_id || null,
        customer_snap, from_snap, b.notes || '', b.footer_text || '',
        b.vat_pct || 15, b.subtotal || 0, b.vat_amount || 0, b.grand_total || 0,
-       b.currency || 'SAR', id]
+       b.currency || 'SAR', b.bilingual || 0, id]
     );
     // Replace items
     await conn.execute('DELETE FROM quotation_items WHERE quotation_id=?', [id]);
@@ -197,8 +235,8 @@ router.put('/:id', requireAuth, async (req, res) => {
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       await conn.execute(
-        'INSERT INTO quotation_items(quotation_id,sort_order,description,quantity,unit_price,line_total) VALUES(?,?,?,?,?,?)',
-        [id, i, it.description || '', it.quantity || 1, it.unit_price || 0, it.line_total || 0]
+        'INSERT INTO quotation_items(quotation_id,sort_order,description,description_ar,quantity,unit_price,line_total) VALUES(?,?,?,?,?,?,?)',
+        [id, i, it.description || '', it.description_ar || '', it.quantity || 1, it.unit_price || 0, it.line_total || 0]
       );
     }
     await conn.commit();

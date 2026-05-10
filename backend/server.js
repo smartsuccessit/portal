@@ -423,6 +423,21 @@ async function runSetup() {
       \`value\` TEXT NOT NULL DEFAULT ''
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
+    await conn.execute(`CREATE TABLE IF NOT EXISTS qt_companies (
+      id           INT AUTO_INCREMENT PRIMARY KEY,
+      name         VARCHAR(300) NOT NULL,
+      name_ar      VARCHAR(300) NOT NULL DEFAULT '',
+      address      TEXT,
+      address_ar   TEXT,
+      phone        VARCHAR(50)  NOT NULL DEFAULT '',
+      email        VARCHAR(200) NOT NULL DEFAULT '',
+      website      VARCHAR(200) NOT NULL DEFAULT '',
+      vat_number   VARCHAR(100) NOT NULL DEFAULT '',
+      logo_url     VARCHAR(500) NOT NULL DEFAULT '',
+      is_default   TINYINT(1)   NOT NULL DEFAULT 0,
+      created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+
     await conn.execute(`CREATE TABLE IF NOT EXISTS qt_customers (
       id           INT AUTO_INCREMENT PRIMARY KEY,
       company_name VARCHAR(300) NOT NULL,
@@ -453,19 +468,21 @@ async function runSetup() {
       vat_amount    DECIMAL(12,2) NOT NULL DEFAULT 0,
       grand_total   DECIMAL(12,2) NOT NULL DEFAULT 0,
       currency      VARCHAR(10) NOT NULL DEFAULT 'SAR',
+      bilingual     TINYINT(1) NOT NULL DEFAULT 0,
       created_by    VARCHAR(100) NOT NULL,
       created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
     await conn.execute(`CREATE TABLE IF NOT EXISTS quotation_items (
-      id           INT AUTO_INCREMENT PRIMARY KEY,
-      quotation_id INT NOT NULL,
-      sort_order   INT NOT NULL DEFAULT 0,
-      description  TEXT NOT NULL,
-      quantity     DECIMAL(10,3) NOT NULL DEFAULT 1,
-      unit_price   DECIMAL(12,2) NOT NULL DEFAULT 0,
-      line_total   DECIMAL(12,2) NOT NULL DEFAULT 0,
+      id             INT AUTO_INCREMENT PRIMARY KEY,
+      quotation_id   INT NOT NULL,
+      sort_order     INT NOT NULL DEFAULT 0,
+      description    TEXT NOT NULL,
+      description_ar TEXT NOT NULL DEFAULT '',
+      quantity       DECIMAL(10,3) NOT NULL DEFAULT 1,
+      unit_price     DECIMAL(12,2) NOT NULL DEFAULT 0,
+      line_total     DECIMAL(12,2) NOT NULL DEFAULT 0,
       FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 
