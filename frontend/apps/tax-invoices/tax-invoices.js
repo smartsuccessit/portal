@@ -521,8 +521,6 @@ window.TaxInvoices = (function() {
 
     // ZATCA QR
     var qrBase64=zatcaQR(inv);
-    var qrUrl='https://chart.googleapis.com/chart?chs=100x100&cht=qr&chl='+encodeURIComponent(qrBase64)+'&choe=UTF-8';
-
     var itemRows=(inv.items||[]).map(function(it,i){
       var descHTML='<div style="font-size:12px;font-weight:500">'+esc(it.description||'')+'</div>';
       if(bilingual&&it.description_ar)descHTML+='<div style="direction:rtl;font-size:11px;color:#64748b;margin-top:2px">'+esc(it.description_ar)+'</div>';
@@ -594,7 +592,7 @@ window.TaxInvoices = (function() {
         '</div>' +
       '</div>' +
       '<div style="text-align:center">' +
-        '<img src="'+qrUrl+'" style="border:3px solid #e2e8f0;border-radius:8px;display:block;width:106px;height:106px" alt="ZATCA QR">' +
+        '<canvas id="zatca-qr" width="100" height="100" style="border:3px solid #e2e8f0;border-radius:8px;display:block"></canvas>' +
         '<div style="font-size:8px;color:#94a3b8;margin-top:3px">ZATCA QR Code</div>' +
       '</div>' +
     '</div>' +
@@ -621,6 +619,20 @@ window.TaxInvoices = (function() {
       '<div style="text-align:right"><div style="font-weight:700;color:#1e2d4a;font-size:11px">'+esc(from.name||'')+'</div><div style="font-size:10px;color:#94a3b8">'+inv.invoice_number+'</div></div>' +
     '</div>' +
     '</div></div>' +
+    '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>' +
+    '<script>window.addEventListener("load",function(){' +
+      'try{' +
+        'var canvas=document.getElementById("zatca-qr");' +
+        'if(canvas){' +
+          'var qr=new QRCode(canvas,{' +
+            'text:'+JSON.stringify(qrBase64)+',' +
+            'width:100,height:100,' +
+            'colorDark:"#1e2d4a",colorLight:"#ffffff",' +
+            'correctLevel:QRCode.CorrectLevel.M' +
+          '});' +
+        '}' +
+      '}catch(e){console.log("QR error",e);}' +
+    '});</script>' +
     '</body></html>';
 
     var w=window.open('','_blank','width=960,height=800');

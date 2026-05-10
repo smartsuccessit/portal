@@ -657,7 +657,7 @@ window.Quotations = (function() {
         '</div>' +
       '</div>' +
       '<div style="text-align:center">' +
-        '<img id="qr-code-img" src="https://chart.googleapis.com/chart?chs=90x90&cht=qr&chl='+encodeURIComponent(qrData)+'&choe=UTF-8" style="border:3px solid #e2e8f0;border-radius:8px;display:block;width:96px;height:96px" alt="QR Code">' +
+        '<canvas id="qt-qr-canvas" width="90" height="90" style="border:3px solid #e2e8f0;border-radius:8px;display:block"></canvas>' +
         '<div style="font-size:8px;color:#94a3b8;margin-top:4px;text-align:center">Scan to verify</div>' +
       '</div>' +
     '</div>';
