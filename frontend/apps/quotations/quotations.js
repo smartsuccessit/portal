@@ -567,6 +567,19 @@ window.Quotations = (function() {
 
   function generatePDF(q) {
     var cur=q.currency||'SAR';
+    // Pre-generate QR data URL on main page canvas
+    var qrDataUrl = '';
+    try {
+      var tmpC = document.createElement('canvas');
+      tmpC.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:96px;height:96px';
+      tmpC.width = 96; tmpC.height = 96;
+      document.body.appendChild(tmpC);
+      if (typeof QRious !== 'undefined') {
+        new QRious({element:tmpC, value:generateQRData(q), size:96, foreground:'#1e2d4a', background:'#ffffff'});
+        qrDataUrl = tmpC.toDataURL('image/png');
+      }
+      document.body.removeChild(tmpC);
+    } catch(e) { console.log('QR error',e); }
     var sub=parseFloat(q.subtotal||0),vat=parseFloat(q.vat_amount||0),tot=parseFloat(q.grand_total||0);
     var from=q.from_snap||{},cust=q.customer_snap||{};
     var bilingual=q.bilingual||0;
@@ -657,7 +670,7 @@ window.Quotations = (function() {
         '</div>' +
       '</div>' +
       '<div style="text-align:center">' +
-        '<canvas id="qt-qr-canvas" width="90" height="90" style="border:3px solid #e2e8f0;border-radius:8px;display:block"></canvas>' +
+        '<img src="'+qrDataUrl+'" style="border:3px solid #e2e8f0;border-radius:8px;display:block;width:96px;height:96px" alt="QR">' +
         '<div style="font-size:8px;color:#94a3b8;margin-top:4px;text-align:center">Scan to verify</div>' +
       '</div>' +
     '</div>';

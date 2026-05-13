@@ -512,6 +512,22 @@ window.TaxInvoices = (function() {
 
   function generatePDF(inv){
     var cur=inv.currency||'SAR';
+    // Pre-generate QR as data URL
+    var qrDataUrl = '';
+    try {
+      var tmpCanvas = document.createElement('canvas');
+      // Must be visible for toDataURL to work in some browsers
+      tmpCanvas.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:106px;height:106px';
+      tmpCanvas.width = 106;
+      tmpCanvas.height = 106;
+      document.body.appendChild(tmpCanvas);
+      var qrBase64Tmp = zatcaQR(inv);
+      if (typeof QRious !== 'undefined') {
+        new QRious({element: tmpCanvas, value: qrBase64Tmp, size: 106, foreground: '#1e2d4a', background: '#ffffff'});
+        qrDataUrl = tmpCanvas.toDataURL('image/png');
+      }
+      document.body.removeChild(tmpCanvas);
+    } catch(e) { console.log('QR pre-gen error', e); }
     var sub=parseFloat(inv.subtotal||0),vat=parseFloat(inv.vat_amount||0),tot=parseFloat(inv.grand_total||0);
     var from=inv.from_snap||{},cust=inv.customer_snap||{};
     var bilingual=inv.bilingual||0;
@@ -550,7 +566,11 @@ window.TaxInvoices = (function() {
     if(from.email)contacts.push(esc(from.email));
     if(from.website)contacts.push(esc(from.website));
     if(contacts.length)compDet+='<div>'+contacts.join(' &bull; ')+'</div>';
-    if(from.vat_number&&from.vat_number.indexOf('@')===-1&&from.vat_number.trim())compDet+='<div>VAT: '+esc(from.vat_number)+'</div>';
+    if(from.vat_number&&from.vat_number.trim()&&from.vat_number.indexOf('@')===-1) {
+      compDet+='<div>VAT: '+esc(from.vat_number)+'</div>';
+    } else if(from.vat_number&&from.vat_number.indexOf('@')!==-1) {
+      // vat field has email - skip, email already shown above
+    }
     compDet+='</div>';
 
     // Title
@@ -592,7 +612,7 @@ window.TaxInvoices = (function() {
         '</div>' +
       '</div>' +
       '<div style="text-align:center">' +
-        '<canvas id="zatca-qr" width="100" height="100" style="border:3px solid #e2e8f0;border-radius:8px;display:block"></canvas>' +
+        (qrDataUrl ? '<img src="'+qrDataUrl+'" style="border:3px solid #e2e8f0;border-radius:8px;display:block;width:106px;height:106px">' : '<div style="width:106px;height:106px;border:3px solid #e2e8f0;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#94a3b8;text-align:center;background:#f8fafc">QR unavailable</div>') +
         '<div style="font-size:8px;color:#94a3b8;margin-top:3px">ZATCA QR Code</div>' +
       '</div>' +
     '</div>' +
@@ -619,20 +639,7 @@ window.TaxInvoices = (function() {
       '<div style="text-align:right"><div style="font-weight:700;color:#1e2d4a;font-size:11px">'+esc(from.name||'')+'</div><div style="font-size:10px;color:#94a3b8">'+inv.invoice_number+'</div></div>' +
     '</div>' +
     '</div></div>' +
-    '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>' +
-    '<script>window.addEventListener("load",function(){' +
-      'try{' +
-        'var canvas=document.getElementById("zatca-qr");' +
-        'if(canvas){' +
-          'var qr=new QRCode(canvas,{' +
-            'text:'+JSON.stringify(qrBase64)+',' +
-            'width:100,height:100,' +
-            'colorDark:"#1e2d4a",colorLight:"#ffffff",' +
-            'correctLevel:QRCode.CorrectLevel.M' +
-          '});' +
-        '}' +
-      '}catch(e){console.log("QR error",e);}' +
-    '});</script>' +
+'' +
     '</body></html>';
 
     var w=window.open('','_blank','width=960,height=800');
