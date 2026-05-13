@@ -361,6 +361,7 @@ window.TaxInvoices = (function() {
     var vatAmount     = parseFloat(inv.vat_amount||0).toFixed(2);
 
     function tlv(tag, value) {
+      // Convert value to UTF-8 bytes stored as latin1 chars
       var enc = unescape(encodeURIComponent(value));
       var len = enc.length;
       var out = String.fromCharCode(tag) + String.fromCharCode(len);
@@ -368,8 +369,8 @@ window.TaxInvoices = (function() {
       return out;
     }
     var tlvStr = tlv(1,sellerName) + tlv(2,sellerVAT) + tlv(3,invoiceDate) + tlv(4,totalWithVAT) + tlv(5,vatAmount);
-    // Base64 encode
-    return btoa(unescape(encodeURIComponent(tlvStr)));
+    // btoa() directly - tlvStr already contains UTF-8 bytes as latin1, no double-encoding
+    return btoa(tlvStr);
   }
 
   // ── PREVIEW ───────────────────────────────────────────────────────────
