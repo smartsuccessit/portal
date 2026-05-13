@@ -354,7 +354,7 @@ window.TaxInvoices = (function() {
   // ── ZATCA QR Code (TLV Base64) ────────────────────────────────────────
   function zatcaQR(inv) {
     var from = inv.from_snap||{};
-    var sellerName    = from.name||'';
+    var sellerName    = (from.name_ar && from.name_ar.trim()) ? from.name_ar : (from.name||'');
     var sellerVAT     = from.vat_number||'';
     var invoiceDate   = (inv.invoice_date||'').slice(0,10)+'T00:00:00Z';
     var totalWithVAT  = parseFloat(inv.grand_total||0).toFixed(2);
